@@ -7,6 +7,8 @@
 
 #define INDENT_LEN 4
 
+using namespace std;
+
 /*
 
 CompUnit  ::= FuncDef;
@@ -24,55 +26,55 @@ class BaseAST {
  public:
   virtual ~BaseAST() = default;
   virtual void Print(int indent) const = 0;
-  virtual void Dump(std::ostream& os, int indent) const = 0;
+  virtual void Dump(ostream& os, int indent) const = 0;
 };
 
 // CompUnit 是 BaseAST
 class CompUnitAST : public BaseAST {
  public:
   // 用智能指针管理对象
-  std::unique_ptr<BaseAST> func_def;
+  unique_ptr<BaseAST> func_def;
 
   void Print(int indent) const override;
 
-  void Dump(std::ostream& os, int indent) const override;
+  void Dump(ostream& os, int indent) const override;
 };
 
 // FuncDef 也是 BaseAST
 class FuncDefAST : public BaseAST {
  public:
-  std::unique_ptr<BaseAST> func_type;
-  std::string ident;
-  std::unique_ptr<BaseAST> block;
+  unique_ptr<BaseAST> func_type;
+  string ident;
+  unique_ptr<BaseAST> block;
 
   void Print(int indent) const override;
 
-  void Dump(std::ostream& os, int indent) const override;
+  void Dump(ostream& os, int indent) const override;
 };
 
 class FuncTypeAST : public BaseAST {
  public:
   void Print(int indent) const override;
 
-  void Dump(std::ostream& os, int indent) const override;
+  void Dump(ostream& os, int indent) const override;
 };
 
 class BlockAST : public BaseAST {
  public:
-  std::unique_ptr<BaseAST> stmt;
+  unique_ptr<BaseAST> stmt;
 
   void Print(int indent) const override;
 
-  void Dump(std::ostream& os, int indent) const override;
+  void Dump(ostream& os, int indent) const override;
 };
 
 class StmtAST : public BaseAST {
  public:
-  std::unique_ptr<BaseAST> number;
+  unique_ptr<BaseAST> number;
 
   void Print(int indent) const override;
 
-  void Dump(std::ostream& os, int indent) const override;
+  void Dump(ostream& os, int indent) const override;
 };
 
 class NumberAST : public BaseAST {
@@ -81,8 +83,8 @@ class NumberAST : public BaseAST {
 
   void Print(int indent) const override;
 
-  void Dump(std::ostream& os, int indent) const override;
+  void Dump(ostream& os, int indent) const override;
 };
 
-void make_indent(int indent);
+void make_indent(ostream& os, int indent);
 // ...

@@ -1,93 +1,93 @@
 #include "ast.h"
 
 void CompUnitAST::Print(int indent) const {
-  make_indent(indent);
-  std::cout << "CompUnitAST {" << std::endl;
+  make_indent(cout, indent);
+  cout << "CompUnitAST {" << endl;
   func_def->Print(indent + 1);
-  make_indent(indent);
-  std::cout << " }," << std::endl;
+  make_indent(cout, indent);
+  cout << " }," << endl;
 }
 
-void CompUnitAST::Dump(std::ostream& os, int indent) const {
+void CompUnitAST::Dump(ostream& os, int indent) const {
   func_def->Dump(os, indent + 1);
 }
 
 void FuncDefAST::Print(int indent) const {
-  make_indent(indent);
-  std::cout << "FuncDefAST {" << std::endl;
+  make_indent(cout, indent);
+  cout << "FuncDefAST {" << endl;
   func_type->Print(indent + 1);
-  make_indent(indent + 1);
-  std::cout << "IDENT: \"" << ident << "\"," << std::endl;
+  make_indent(cout, indent + 1);
+  cout << "IDENT: \"" << ident << "\"," << endl;
   block->Print(indent + 1);
-  make_indent(indent);
-  std::cout << " }," << std::endl;
+  make_indent(cout, indent);
+  cout << " }," << endl;
 }
 
-void FuncDefAST::Dump(std::ostream& os, int indent) const {
-  make_indent(indent);
+void FuncDefAST::Dump(ostream& os, int indent) const {
+  make_indent(os, indent);
   os << "fun @" << ident << "(): ";
   func_type->Dump(os, indent + 1);
-  os << " {" << std::endl;
+  os << " {" << endl;
   block->Dump(os, indent);
-  make_indent(indent);
-  os << "}" << std::endl;
+  make_indent(os, indent);
+  os << "}" << endl;
 }
 
 void FuncTypeAST::Print(int indent) const {
-  make_indent(indent);
-  std::cout << "FuncTypeAST: int," << std::endl;
+  make_indent(cout, indent);
+  cout << "FuncTypeAST: int," << endl;
 }
 
-void FuncTypeAST::Dump(std::ostream& os, int indent) const {
+void FuncTypeAST::Dump(ostream& os, int indent) const {
   os << "i32";
 }
 
 void BlockAST::Print(int indent) const {
-  make_indent(indent);
-  std::cout << "BlockAST {" << std::endl;
+  make_indent(cout, indent);
+  cout << "BlockAST {" << endl;
   stmt->Print(indent + 1);
-  make_indent(indent);
-  std::cout << " }," << std::endl;
+  make_indent(cout, indent);
+  cout << " }," << endl;
 }
 
-void BlockAST::Dump(std::ostream& os, int indent) const {
-  make_indent(indent);
+void BlockAST::Dump(ostream& os, int indent) const {
+  make_indent(os, indent);
   os << "%"
-     << "entry:" << std::endl;
+     << "entry:" << endl;
   stmt->Dump(os, indent + 1);
 }
 
 void StmtAST::Print(int indent) const {
-  make_indent(indent);
-  std::cout << "StmtAST {" << std::endl;
+  make_indent(cout, indent);
+  cout << "StmtAST {" << endl;
   number->Print(indent + 1);
-  make_indent(indent);
-  std::cout << " }," << std::endl;
+  make_indent(cout, indent);
+  cout << " }," << endl;
 }
 
-void StmtAST::Dump(std::ostream& os, int indent) const {
-  make_indent(indent);
+void StmtAST::Dump(ostream& os, int indent) const {
+  make_indent(os, indent);
   os << "ret ";
   number->Dump(os, indent);
-  os << std::endl;
+  os << endl;
 }
 
 void NumberAST::Print(int indent) const {
-  make_indent(indent);
-  std::cout << "NumberAST {" << std::endl;
-  make_indent(indent + 1);
-  std::cout << "int_const: " << int_const << std::endl;
-  make_indent(indent);
-  std::cout << " }," << std::endl;
+  make_indent(cout, indent);
+  cout << "NumberAST {" << endl;
+  make_indent(cout, indent + 1);
+  cout << "int_const: " << int_const << endl;
+  make_indent(cout, indent);
+  cout << " }," << endl;
 }
 
-void NumberAST::Dump(std::ostream& os, int indent) const {
+void NumberAST::Dump(ostream& os, int indent) const {
   os << int_const;
 }
 
-void make_indent(int indent) {
-  std::string idt(INDENT_LEN, ' ');
+void make_indent(ostream& os, int indent) {
+  string idt(INDENT_LEN, ' ');
   for (int i = 0; i < indent; i++) {
-    std::cout << idt;
+    os << idt;
   }
 }
