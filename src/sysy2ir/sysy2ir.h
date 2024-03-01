@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstring>
 #include <fstream>
+#include <queue>
 #include <sstream>
 #include <string>
 #include "ast.h"

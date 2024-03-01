@@ -51,6 +51,7 @@
         "cinttypes": "cpp",
         "typeinfo": "cpp",
         "sstream": "cpp",
-        "cassert": "cpp"
+        "cassert": "cpp",
+        "cstring": "cpp"
     }
 }

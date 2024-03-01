@@ -1,7 +1,7 @@
 %code requires {
   #include <memory>
   #include <string>
-  #include <ast.h>
+  #include <sysy2ir/ast.h>
 }
 
 %{
@@ -9,7 +9,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
-#include <ast.h>
+#include <sysy2ir/ast.h>
 
 // 声明 lexer 函数和错误处理函数
 int yylex();
@@ -42,7 +42,7 @@ using namespace std;
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt Number
+%type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp Number UnaryExp UnaryOp
 
 %%
 
@@ -96,9 +96,26 @@ Block
   ;
 
 Stmt
-  : RETURN Number ';' {
+  : RETURN Exp ';' {
     auto ast = new StmtAST();
-    ast->number = unique_ptr<BaseAST>($2);
+    ast->exp = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  ;
+
+PrimaryExp
+  : '(' Exp ')' {
+    auto ast = new PrimaryExpAST();
+    ast->pex = PrimaryExpAST::pex_t::Brackets;
+    ast->exp = unique_ptr<BaseAST>($2);
+    ast->number = nullptr;
+    $$ = ast;
+  }
+  | Number {
+    auto ast = new PrimaryExpAST();
+    ast->pex = PrimaryExpAST::pex_t::Number;
+    ast->exp = nullptr;
+    ast->number = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;
@@ -107,6 +124,51 @@ Number
   : INT_CONST {
     auto ast = new NumberAST();
     ast->int_const = $1;
+    $$ = ast;
+  }
+  ;
+
+Exp
+  : UnaryExp {
+    auto ast = new ExpAST();
+    ast->uexp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  ;
+
+UnaryExp
+  : PrimaryExp {
+    auto ast = new UnaryExpAST();
+    ast->uex = UnaryExpAST::uex_t::Primary;
+    ast->prim = unique_ptr<BaseAST>($1);
+    ast->uop = nullptr;
+    ast->uexp = nullptr;
+    $$ = ast;
+  }
+  | UnaryOp UnaryExp {
+    auto ast = new UnaryExpAST();
+    ast->uex = UnaryExpAST::uex_t::Unary;
+    ast->prim = nullptr;
+    ast->uop = unique_ptr<BaseAST>($1);
+    ast->uexp = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  ;
+
+UnaryOp
+  : '+' {
+    auto ast = new UnaryOPAST();
+    ast->uop = UnaryOPAST::uop_t::Pos;
+    $$ = ast;
+  }
+  | '-' {
+    auto ast = new UnaryOPAST();
+    ast->uop = UnaryOPAST::uop_t::Neg;
+    $$ = ast;
+  }
+  | '!' {
+    auto ast = new UnaryOPAST();
+    ast->uop = UnaryOPAST::uop_t::Not;
     $$ = ast;
   }
   ;

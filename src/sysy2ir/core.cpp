@@ -15,10 +15,12 @@ string sysy2ir(const char* input,
   auto ret = yyparse(ast);
   assert(!ret);
 
-  stringstream ss;
-  ast->Dump(ss, -1);
+  stringstream ss, pr;
 
   if (output2stdout) {
+    ast->Print(pr, 0);
+    cout << "Structure: \n" << pr.str() << endl;
+    ast->Dump(ss, nullptr, -1);
     cout << "IR code:\n" << ss.str() << endl;
   }
 

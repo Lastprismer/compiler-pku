@@ -4,7 +4,6 @@
 #include <iostream>
 #include <memory>
 #include <string>
-#include "ast.h"
 #include "ir2riscv/ir2riscv.h"
 #include "sysy2ir/sysy2ir.h"
 
