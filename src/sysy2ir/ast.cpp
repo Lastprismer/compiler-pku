@@ -8,7 +8,8 @@ void CompUnitAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void CompUnitAST::Dump(ostream& os, shared_ptr<FuncInfo> info, int indent) {
+void CompUnitAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
+  // 这里info应该是nullptr
   func_def->Dump(os, info, indent + 1);
 }
 
@@ -23,8 +24,8 @@ void FuncDefAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void FuncDefAST::Dump(ostream& os, shared_ptr<FuncInfo> info, int indent) {
-  func_info = make_shared<FuncInfo>();
+void FuncDefAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
+  func_info = make_shared<CodeFuncInfo>();
   func_info->func_name = ident;
   func_type->Dump(os, func_info, indent + 1);
   func_info->write_prologue(os);
@@ -37,7 +38,7 @@ void FuncTypeAST::Print(ostream& os, int indent) const {
   os << "FuncTypeAST: int," << endl;
 }
 
-void FuncTypeAST::Dump(ostream& os, shared_ptr<FuncInfo> info, int indent) {
+void FuncTypeAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
   info->ret_type = "i32";
 }
 
@@ -49,7 +50,7 @@ void BlockAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void BlockAST::Dump(ostream& os, shared_ptr<FuncInfo> info, int indent) {
+void BlockAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
   make_indent(os, indent);
   os << "%"
      << "entry:" << endl;
@@ -64,7 +65,7 @@ void StmtAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void StmtAST::Dump(ostream& os, shared_ptr<FuncInfo> info, int indent) {
+void StmtAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
   exp->Dump(os, info, indent);
 }
 
@@ -78,7 +79,7 @@ void ExpAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void ExpAST::Dump(ostream& os, shared_ptr<FuncInfo> info, int indent) {
+void ExpAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
   uexp->Dump(os, info, indent);
 }
 
@@ -99,7 +100,9 @@ void PrimaryExpAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void PrimaryExpAST::Dump(ostream& os, shared_ptr<FuncInfo> info, int indent) {
+void PrimaryExpAST::Dump(ostream& os,
+                         shared_ptr<CodeFuncInfo> info,
+                         int indent) {
   switch (pex) {
     case Brackets:
       exp->Dump(os, info, indent);
@@ -132,7 +135,7 @@ void NumberAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void NumberAST::Dump(ostream& os, shared_ptr<FuncInfo> info, int indent) {
+void NumberAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
   info->push_imm(int_const);
 }
 
@@ -155,7 +158,7 @@ void UnaryExpAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void UnaryExpAST::Dump(ostream& os, shared_ptr<FuncInfo> info, int indent) {
+void UnaryExpAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
   switch (uex) {
     case Unary:
       uexp->Dump(os, info, indent);
@@ -186,7 +189,7 @@ void UnaryOPAST::Print(ostream& os, int indent) const {
   os << "UnaryOPAST { " << enum_name() << " } " << endl;
 }
 
-void UnaryOPAST::Dump(ostream& os, shared_ptr<FuncInfo> info, int indent) {
+void UnaryOPAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
   info->write_inst(os, *enum_name());
 }
 

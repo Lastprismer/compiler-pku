@@ -2,18 +2,18 @@
 
 #include <cassert>
 #include <cstring>
-#include <queue>
+#include <deque>
 #include <sstream>
 #include <string>
 
 using namespace std;
 
-class CompInfo {
+class CodeCompInfo {
  public:
-  virtual ~CompInfo() = default;
+  virtual ~CodeCompInfo() = default;
 };
 
-class FuncInfo : public CompInfo {
+class CodeFuncInfo : public CodeCompInfo {
  public:
   // 栈内元素类型
   typedef enum unary_exp_ssa_component_t { symbol, imm } uexpc_t;
@@ -30,9 +30,9 @@ class FuncInfo : public CompInfo {
   int cur_indent;
   string func_name;
   string ret_type;
-  queue<comp_t> node_stack;
+  deque<comp_t> node_stack;
 
-  FuncInfo();
+  CodeFuncInfo();
   // 生成函数开头
   void write_prologue(ostream& os);
   // 生成函数屁股

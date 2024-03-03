@@ -6,7 +6,7 @@ extern int yyparse(unique_ptr<BaseAST>& ast);
 string sysy2ir(const char* input,
                const char* output,
                bool output2file,
-               bool output2stdout = false) {
+               bool output2stdout) {
   yyin = fopen(input, "r");
   assert(yyin);
 
@@ -16,11 +16,11 @@ string sysy2ir(const char* input,
   assert(!ret);
 
   stringstream ss, pr;
+  // ast->Print(pr, 0);
+  ast->Dump(ss, nullptr, -1);
 
   if (output2stdout) {
-    ast->Print(pr, 0);
-    cout << "Structure: \n" << pr.str() << endl;
-    ast->Dump(ss, nullptr, -1);
+    // cout << "Structure: \n" << pr.str() << endl;
     cout << "IR code:\n" << ss.str() << endl;
   }
 

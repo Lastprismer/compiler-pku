@@ -1,21 +1,21 @@
 #include "info.h"
 
-int FuncInfo::var_cnt = 0;
+int CodeFuncInfo::var_cnt = 0;
 
-FuncInfo::FuncInfo() {
+CodeFuncInfo::CodeFuncInfo() {
   cur_indent = 0;
   func_name = "";
   ret_type = "";
-  node_stack = queue<comp_t>();
+  node_stack = deque<comp_t>();
 }
 
-void FuncInfo::write_prologue(ostream& os) {
+void CodeFuncInfo::write_prologue(ostream& os) {
   os << "fun @" << func_name << "(): " << ret_type << "{\n";
   cur_indent += 2;
   return;
 }
 
-void FuncInfo::write_epilogue(ostream& os) {
+void CodeFuncInfo::write_epilogue(ostream& os) {
   assert(node_stack.size() == 1);
   os << ind_sp() << "ret ";
   comp_t comp = node_stack.front();
@@ -29,24 +29,24 @@ void FuncInfo::write_epilogue(ostream& os) {
   return;
 }
 
-void FuncInfo::push_symbol(int syb) {
+void CodeFuncInfo::push_symbol(int syb) {
   comp_t comp;
   comp.tag = symbol;
   if (syb == -1) {
     comp.content.symbol_id = create_temp_symbol();
   }
   comp.content.symbol_id = syb;
-  node_stack.push(comp);
+  node_stack.push_front(comp);
 }
 
-void FuncInfo::push_imm(int int_const) {
+void CodeFuncInfo::push_imm(int int_const) {
   comp_t comp;
   comp.tag = imm;
   comp.content.imm = int_const;
-  node_stack.push(comp);
+  node_stack.push_front(comp);
 }
 
-void FuncInfo::write_inst(ostream& os, char op) {
+void CodeFuncInfo::write_inst(ostream& os, char op) {
   if (op == '+') {
     return;
   }
@@ -61,7 +61,7 @@ void FuncInfo::write_inst(ostream& os, char op) {
   }
 
   comp_t comp = node_stack.front();
-  node_stack.pop();
+  node_stack.pop_front();
   if (comp.tag == uexpc_t::imm) {
     os << comp.content.imm << endl;
   } else {
@@ -71,10 +71,10 @@ void FuncInfo::write_inst(ostream& os, char op) {
   return;
 }
 
-int FuncInfo::create_temp_symbol() {
+int CodeFuncInfo::create_temp_symbol() {
   return var_cnt++;
 }
 
-inline string FuncInfo::ind_sp() {
+inline string CodeFuncInfo::ind_sp() {
   return string(cur_indent, ' ');
 }

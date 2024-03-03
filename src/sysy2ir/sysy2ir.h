@@ -14,4 +14,4 @@ using namespace std;
 string sysy2ir(const char* input,
                const char* output,
                bool output2file,
-               bool output2stdout);
+               bool output2stdout = true);
