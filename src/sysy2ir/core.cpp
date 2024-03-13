@@ -16,11 +16,11 @@ string sysy2ir(const char* input,
   assert(!ret);
 
   stringstream ss, pr;
-  // ast->Print(pr, 0);
-  ast->Dump(ss, nullptr, -1);
+  ast->Print(cout, 0);
+  ast->Dump(cout, nullptr, -1);
 
   if (output2stdout) {
-    // cout << "Structure: \n" << pr.str() << endl;
+    cout << "Structure: \n" << pr.str() << endl;
     cout << "IR code:\n" << ss.str() << endl;
   }
 

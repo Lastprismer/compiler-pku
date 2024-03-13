@@ -23,14 +23,16 @@ FuncType  ::= "int";
 Block     ::= "{" Stmt "}";
 Stmt        ::= "return" Exp ";";
 
-Exp         ::= UnaryExp;
+Exp         ::= AddExp;
 PrimaryExp  ::= "(" Exp ")" | Number;
 Number      ::= INT_CONST;
 UnaryExp    ::= PrimaryExp | UnaryOp UnaryExp;
 UnaryOp     ::= "+" | "-" | "!";
-
+MulExp      ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;
+AddExp      ::= MulExp | AddExp ("+" | "-") MulExp;
 
 */
+
 class BaseAST {
  public:
   virtual ~BaseAST() = default;
@@ -84,10 +86,10 @@ class StmtAST : public BaseAST {
   void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
 };
 
-// Exp         ::= UnaryExp;
+// Exp         ::= AddExp;
 class ExpAST : public BaseAST {
  public:
-  unique_ptr<BaseAST> uexp;
+  unique_ptr<BaseAST> aexp;
 
   void Print(ostream& os, int indent) const override;
   void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
@@ -108,7 +110,7 @@ class PrimaryExpAST : public BaseAST {
   void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
 
  private:
-  const char* enum_name() const;
+  const char* type() const;
 };
 
 // Number      ::= INT_CONST;
@@ -136,7 +138,7 @@ class UnaryExpAST : public BaseAST {
   void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
 
  private:
-  const char* enum_name() const;
+  const char* type() const;
 };
 
 // UnaryOp     ::= "+" | "-" | "!";
@@ -154,6 +156,49 @@ class UnaryOPAST : public BaseAST {
 
  private:
   const char* enum_name() const;
+};
+
+// MulExp      ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;
+class MulExpAST : public BaseAST {
+ public:
+  const char* MUL_NAME = "*";
+  const char* DIV_NAME = "/";
+  const char* MOD_NAME = "%";
+
+  enum mex_t { Unary, MulOPUnary };
+  mex_t mex;
+  enum mop_t { Mul, Div, Mod };
+  mop_t mop;
+  unique_ptr<BaseAST> mexp;
+  unique_ptr<BaseAST> uexp;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+
+ private:
+  const char* enum_name() const;
+  string type() const;
+};
+
+// AddExp      ::= MulExp | AddExp ("+" | "-") MulExp;
+class AddExpAST : public BaseAST {
+ public:
+  const char* ADD_NAME = "+";
+  const char* SUB_NAME = "-";
+
+  enum aex_t { MulExp, AddOPMul };
+  aex_t aex;
+  enum aop_t { Add, Sub };
+  aop_t aop;
+  unique_ptr<BaseAST> mexp;
+  unique_ptr<BaseAST> aexp;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+
+ private:
+  const char* enum_name() const;
+  string type() const;
 };
 
 void make_indent(ostream& os, int indent);

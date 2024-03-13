@@ -15,10 +15,10 @@ using namespace build;
 
 class IRFuncInfo {
  public:
-  typedef enum binary_elem_t { reg, imm } nodetype_t;
+  typedef enum binary_elem_t { reg, imm } nodetag_t;
   typedef koopa_raw_binary_op_t biop_t;
   typedef struct {
-    nodetype_t tag;
+    nodetag_t tag;
     union {
       reg_t reg;
       int imm;

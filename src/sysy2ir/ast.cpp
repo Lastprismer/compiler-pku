@@ -1,5 +1,7 @@
 #include "ast.h"
 
+#pragma region CompUnitAST
+
 void CompUnitAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "CompUnitAST {" << endl;
@@ -12,6 +14,10 @@ void CompUnitAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
   // 这里info应该是nullptr
   func_def->Dump(os, info, indent + 1);
 }
+
+#pragma endregion
+
+#pragma region FuncDefAST
 
 void FuncDefAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
@@ -33,6 +39,10 @@ void FuncDefAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
   func_info->write_epilogue(os);
 }
 
+#pragma endregion
+
+#pragma region FuncTypeAST
+
 void FuncTypeAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "FuncTypeAST: int," << endl;
@@ -41,6 +51,10 @@ void FuncTypeAST::Print(ostream& os, int indent) const {
 void FuncTypeAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
   info->ret_type = "i32";
 }
+
+#pragma endregion
+
+#pragma region BlockAST
 
 void BlockAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
@@ -57,6 +71,10 @@ void BlockAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
   stmt->Dump(os, info, indent + 1);
 }
 
+#pragma endregion
+
+#pragma region StmtAST
+
 void StmtAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "StmtAST {" << endl;
@@ -69,28 +87,35 @@ void StmtAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
   exp->Dump(os, info, indent);
 }
 
+#pragma endregion
+
+#pragma region ExpAST
+
 void ExpAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "ExpAST {" << endl;
 
-  uexp->Print(os, indent + 1);
+  aexp->Print(os, indent + 1);
 
   make_indent(os, indent);
   os << " }," << endl;
 }
 
 void ExpAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
-  uexp->Dump(os, info, indent);
+  aexp->Dump(os, info, indent);
 }
+
+#pragma endregion
+
+#pragma region PrimaryExpAST
 
 void PrimaryExpAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "PrimaryAST {" << endl;
   make_indent(os, indent + 1);
-  const char* type = enum_name();
-  os << "type: " << type << endl;
+  os << "type: " << type() << endl;
 
-  if (strcmp(type, BRACKETSEXP_NAME) == 0) {
+  if (pex == pex_t::Brackets) {
     exp->Print(os, indent + 1);
   } else {
     number->Print(os, indent + 1);
@@ -115,7 +140,7 @@ void PrimaryExpAST::Dump(ostream& os,
   }
 }
 
-const char* PrimaryExpAST::enum_name() const {
+const char* PrimaryExpAST::type() const {
   switch (pex) {
     case Brackets:
       return BRACKETSEXP_NAME;
@@ -125,6 +150,10 @@ const char* PrimaryExpAST::enum_name() const {
       assert(false);
   }
 }
+
+#pragma endregion
+
+#pragma region NumberAST
 
 void NumberAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
@@ -139,15 +168,18 @@ void NumberAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
   info->push_imm(int_const);
 }
 
+#pragma endregion
+
+#pragma region UnaryExpAST
+
 void UnaryExpAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "UnaryExpAST {" << endl;
   make_indent(os, indent + 1);
 
-  const char* type = enum_name();
-  os << "type: " << type << endl;
+  os << "type: " << type() << endl;
 
-  if (strcmp(type, PRIMARY_NAME) == 0) {
+  if (uex == uex_t::Primary) {
     prim->Print(os, indent + 1);
   } else {
     uop->Print(os, indent + 1);
@@ -173,7 +205,7 @@ void UnaryExpAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
   }
 }
 
-const char* UnaryExpAST::enum_name() const {
+const char* UnaryExpAST::type() const {
   switch (uex) {
     case Primary:
       return PRIMARY_NAME;
@@ -184,13 +216,17 @@ const char* UnaryExpAST::enum_name() const {
   }
 }
 
+#pragma endregion
+
+#pragma region UnaryOPAST
+
 void UnaryOPAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "UnaryOPAST { " << enum_name() << " } " << endl;
 }
 
 void UnaryOPAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
-  info->write_inst(os, *enum_name());
+  info->write_unary_inst(os, *enum_name());
 }
 
 const char* UnaryOPAST::enum_name() const {
@@ -205,6 +241,118 @@ const char* UnaryOPAST::enum_name() const {
       assert(false);
   }
 }
+
+#pragma endregion
+
+#pragma region MulExpAST
+
+void MulExpAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "MulExpAST {" << endl;
+  make_indent(os, indent + 1);
+
+  os << "type: " << type() << endl;
+
+  if (mex == mex_t::MulOPUnary) {
+    mexp->Print(os, indent + 1);
+    make_indent(os, indent);
+    os << "op: " << enum_name() << endl;
+    uexp->Print(os, indent + 1);
+  } else {
+    uexp->Print(os, indent + 1);
+  }
+
+  make_indent(os, indent);
+  os << " }," << endl;
+}
+
+void MulExpAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
+  if (mex == mex_t::MulOPUnary) {
+    mexp->Dump(os, info, indent);
+    uexp->Dump(os, info, indent);
+    info->write_binary_inst(os, *enum_name());
+  } else {
+    uexp->Dump(os, info, indent);
+  }
+}
+
+const char* MulExpAST::enum_name() const {
+  switch (mop) {
+    case mop_t::Mul:
+      return MUL_NAME;
+    case mop_t::Div:
+      return DIV_NAME;
+    case mop_t::Mod:
+      return MOD_NAME;
+    default:
+      assert(false);
+  }
+}
+
+string MulExpAST::type() const {
+  if (mex == mex_t::Unary) {
+    return string("Unary");
+  }
+  stringstream ss;
+  ss << "MulExp " << enum_name() << " UnaryExp";
+  return ss.str();
+}
+
+#pragma endregion
+
+#pragma region AddExpAST
+
+void AddExpAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "AddExpAST {" << endl;
+  make_indent(os, indent + 1);
+
+  os << "type: " << type() << endl;
+
+  if (aex == aex_t::AddOPMul) {
+    aexp->Print(os, indent + 1);
+    make_indent(os, indent);
+    os << "op: " << enum_name() << endl;
+    mexp->Print(os, indent + 1);
+  } else {
+    mexp->Print(os, indent + 1);
+  }
+
+  make_indent(os, indent);
+  os << " }," << endl;
+}
+
+void AddExpAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
+  if (aex == aex_t::AddOPMul) {
+    aexp->Dump(os, info, indent);
+    mexp->Dump(os, info, indent);
+    info->write_binary_inst(os, *enum_name());
+  } else {
+    mexp->Dump(os, info, indent);
+  }
+}
+
+const char* AddExpAST::enum_name() const {
+  switch (aop) {
+    case aop_t::Add:
+      return "+";
+    case aop_t::Sub:
+      return "-";
+    default:
+      assert(false);
+  }
+}
+
+string AddExpAST::type() const {
+  if (aex == aex_t::MulExp) {
+    return string("MulExp");
+  }
+  stringstream ss;
+  ss << "AddExp " << enum_name() << " MulExp";
+  return ss.str();
+}
+
+#pragma endregion
 
 void make_indent(ostream& os, int indent) {
   string idt(INDENT_LEN, ' ');

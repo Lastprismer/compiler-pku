@@ -42,7 +42,8 @@ using namespace std;
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt Exp PrimaryExp Number UnaryExp UnaryOp
+%type <ast_val> FuncDef FuncType Block Stmt
+%type <ast_val> Exp PrimaryExp Number UnaryExp UnaryOp MulExp AddExp
 
 %%
 
@@ -129,9 +130,9 @@ Number
   ;
 
 Exp
-  : UnaryExp {
+  : AddExp {
     auto ast = new ExpAST();
-    ast->uexp = unique_ptr<BaseAST>($1);
+    ast->aexp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;
@@ -169,6 +170,64 @@ UnaryOp
   | '!' {
     auto ast = new UnaryOPAST();
     ast->uop = UnaryOPAST::uop_t::Not;
+    $$ = ast;
+  }
+  ;
+
+MulExp
+  : UnaryExp {
+    auto ast = new MulExpAST();
+    ast->mex = MulExpAST::mex_t::Unary;
+    ast->uexp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | MulExp '*' UnaryExp {
+    auto ast = new MulExpAST();
+    ast->mex = MulExpAST::mex_t::MulOPUnary;
+    ast->mop = MulExpAST::mop_t::Mul;
+    ast->mexp = unique_ptr<BaseAST>($1);
+    ast->uexp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  | MulExp '/' UnaryExp {
+    auto ast = new MulExpAST();
+    ast->mex = MulExpAST::mex_t::MulOPUnary;
+    ast->mop = MulExpAST::mop_t::Div;
+    ast->mexp = unique_ptr<BaseAST>($1);
+    ast->uexp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  | MulExp '%' UnaryExp {
+    auto ast = new MulExpAST();
+    ast->mex = MulExpAST::mex_t::MulOPUnary;
+    ast->mop = MulExpAST::mop_t::Mod;
+    ast->mexp = unique_ptr<BaseAST>($1);
+    ast->uexp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+AddExp
+  : MulExp {
+    auto ast = new AddExpAST();
+    ast->aex = AddExpAST::aex_t::MulExp;
+    ast->mexp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | AddExp '+' MulExp {
+    auto ast = new AddExpAST();
+    ast->aex = AddExpAST::aex_t::AddOPMul;
+    ast->aop = AddExpAST::aop_t::Add;
+    ast->aexp = unique_ptr<BaseAST>($1);
+    ast->mexp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  | AddExp '-' MulExp {
+    auto ast = new AddExpAST();
+    ast->aex = AddExpAST::aex_t::AddOPMul;
+    ast->aop = AddExpAST::aop_t::Sub;
+    ast->aexp = unique_ptr<BaseAST>($1);
+    ast->mexp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   ;

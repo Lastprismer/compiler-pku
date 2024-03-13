@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstring>
 #include <deque>
+#include <iostream>
 #include <sstream>
 #include <string>
 
@@ -16,21 +17,25 @@ class CodeCompInfo {
 class CodeFuncInfo : public CodeCompInfo {
  public:
   // 栈内元素类型
-  typedef enum unary_exp_ssa_component_t { symbol, imm } uexpc_t;
+  typedef enum unary_exp_ssa_component_t { symbol, imm, unused } NodeTag;
   // 栈内元素
-  typedef struct {
-    uexpc_t tag;
+  struct Node {
+    NodeTag tag;
     union {
       int symbol_id;
       int imm;
     } content;
-  } comp_t;
+    Node();
+    Node(int i);
+    Node(const Node& n);
+    Node(Node&& n);
+  };
 
   static int var_cnt;
   int cur_indent;
   string func_name;
   string ret_type;
-  deque<comp_t> node_stack;
+  deque<Node> node_stack;
 
   CodeFuncInfo();
   // 生成函数开头
@@ -42,9 +47,12 @@ class CodeFuncInfo : public CodeCompInfo {
   // 推入立即数
   void push_imm(int int_const);
   // 输入单目运算符，输出指令
-  void write_inst(ostream& os, char op);
+  void write_unary_inst(ostream& os, char op);
+  // 输入双目运算符，输出指令
+  void write_binary_inst(ostream& os, char op);
 
  private:
   int create_temp_symbol();
   inline string ind_sp();
+  void parse_node(ostream& os, const Node& node);
 };

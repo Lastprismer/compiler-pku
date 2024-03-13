@@ -30,7 +30,7 @@ void IRFuncInfo::write_epilogue(ostream& os) {
   // 此时栈内应有唯一值
   assert(node_stack.size() >= 1);
   node_t ret = node_stack.front();
-  if (ret.tag == nodetype_t::imm) {
+  if (ret.tag == nodetag_t::imm) {
     li(os, reg_t::a0, ret.content.imm);
     build::ret(os);
   } else {
@@ -43,7 +43,7 @@ void IRFuncInfo::push_reg(reg_t reg) {
   if (!start_writing)
     return;
   node_t bi;
-  bi.tag = nodetype_t::reg;
+  bi.tag = nodetag_t::reg;
   bi.content.reg = reg;
   node_stack.push_front(bi);
 }
@@ -56,7 +56,7 @@ void IRFuncInfo::push_imm(int imm) {
     push_reg(reg_t::x0);
   } else {
     node_t bi;
-    bi.tag = nodetype_t::imm;
+    bi.tag = nodetag_t::imm;
     bi.content.imm = imm;
     node_stack.push_front(bi);
   }
@@ -97,10 +97,10 @@ reg_t IRFuncInfo::gen_inst(ostream& os,
   switch (op) {
     case koopa_raw_binary_op::KOOPA_RBO_EQ:
       // TODO: 当前只有左端会是0
-      assert(left.tag == nodetype_t::reg && left.content.reg == reg_t::x0);
+      assert(left.tag == nodetag_t::reg && left.content.reg == reg_t::x0);
 
-      if (left.tag == nodetype_t::reg && left.content.reg == reg_t::x0) {
-        if (right.tag == nodetype_t::reg) {
+      if (left.tag == nodetag_t::reg && left.content.reg == reg_t::x0) {
+        if (right.tag == nodetag_t::reg) {
           // 使用seqz
           seqz(os, rd, right.content.reg);
         } else {
@@ -115,10 +115,10 @@ reg_t IRFuncInfo::gen_inst(ostream& os,
 
       break;
     case koopa_raw_binary_op::KOOPA_RBO_SUB:
-      if (left.tag == nodetype_t::imm) {
+      if (left.tag == nodetag_t::imm) {
         // left分配，使用完就释放
         reg_t lreg = get_aval_reg();
-        if (right.tag == nodetype_t::imm) {
+        if (right.tag == nodetag_t::imm) {
           // 使用addi rd, left, -right
           addi(os, rd, lreg, -right.content.imm);
         } else {
@@ -126,8 +126,8 @@ reg_t IRFuncInfo::gen_inst(ostream& os,
         }
         release_reg(lreg);
 
-      } else if (left.tag == nodetype_t::reg) {
-        if (right.tag == nodetype_t::imm) {
+      } else if (left.tag == nodetag_t::reg) {
+        if (right.tag == nodetag_t::imm) {
           // 使用addi rd, left, -right
           addi(os, rd, left.content.reg, -right.content.imm);
         } else {
@@ -143,8 +143,8 @@ reg_t IRFuncInfo::gen_inst(ostream& os,
 }
 
 void IRFuncInfo::imm_zero2rig_x0(node_t& node) {
-  if (node.tag == nodetype_t::imm && node.content.imm == 0) {
-    node.tag = nodetype_t::reg;
+  if (node.tag == nodetag_t::imm && node.content.imm == 0) {
+    node.tag = nodetag_t::reg;
     node.content.reg = reg_t::x0;
   }
 }
