@@ -23,13 +23,17 @@ FuncType  ::= "int";
 Block     ::= "{" Stmt "}";
 Stmt        ::= "return" Exp ";";
 
-Exp         ::= AddExp;
+Exp         ::= LOrExp;
 PrimaryExp  ::= "(" Exp ")" | Number;
 Number      ::= INT_CONST;
 UnaryExp    ::= PrimaryExp | UnaryOp UnaryExp;
 UnaryOp     ::= "+" | "-" | "!";
 MulExp      ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;
 AddExp      ::= MulExp | AddExp ("+" | "-") MulExp;
+RelExp      ::= AddExp | RelExp ("<" | ">" | "<=" | ">=") AddExp;
+EqExp       ::= RelExp | EqExp ("==" | "!=") RelExp;
+LAndExp     ::= EqExp | LAndExp "&&" EqExp;
+LOrExp      ::= LAndExp | LOrExp "||" LAndExp;
 
 */
 
@@ -86,10 +90,10 @@ class StmtAST : public BaseAST {
   void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
 };
 
-// Exp         ::= AddExp;
+// Exp         ::= LOrExp;
 class ExpAST : public BaseAST {
  public:
-  unique_ptr<BaseAST> aexp;
+  unique_ptr<BaseAST> loexp;
 
   void Print(ostream& os, int indent) const override;
   void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
@@ -98,9 +102,6 @@ class ExpAST : public BaseAST {
 // PrimaryExp  ::= "(" Exp ")" | Number;
 class PrimaryExpAST : public BaseAST {
  public:
-  const char* BRACKETSEXP_NAME = "(Exp)";
-  const char* NUMBER_NAME = "Number";
-
   enum pex_t { Brackets, Number };
   pex_t pex;
   unique_ptr<BaseAST> exp;
@@ -125,9 +126,6 @@ class NumberAST : public BaseAST {
 // UnaryExp    ::= PrimaryExp | UnaryOp UnaryExp;
 class UnaryExpAST : public BaseAST {
  public:
-  const char* PRIMARY_NAME = "PrimaryExp";
-  const char* UNARY_NAME = "UnaryOp UnaryExp";
-
   enum uex_t { Primary, Unary };
   uex_t uex;
   unique_ptr<BaseAST> prim;
@@ -144,10 +142,6 @@ class UnaryExpAST : public BaseAST {
 // UnaryOp     ::= "+" | "-" | "!";
 class UnaryOPAST : public BaseAST {
  public:
-  const char* POS_NAME = "+";
-  const char* NEG_NAME = "-";
-  const char* NOT_NAME = "!";
-
   enum uop_t { Pos, Neg, Not };
   uop_t uop;
 
@@ -155,16 +149,12 @@ class UnaryOPAST : public BaseAST {
   void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
 
  private:
-  const char* enum_name() const;
+  const char* op_name() const;
 };
 
 // MulExp      ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;
 class MulExpAST : public BaseAST {
  public:
-  const char* MUL_NAME = "*";
-  const char* DIV_NAME = "/";
-  const char* MOD_NAME = "%";
-
   enum mex_t { Unary, MulOPUnary };
   mex_t mex;
   enum mop_t { Mul, Div, Mod };
@@ -176,16 +166,13 @@ class MulExpAST : public BaseAST {
   void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
 
  private:
-  const char* enum_name() const;
+  const char* op_name() const;
   string type() const;
 };
 
 // AddExp      ::= MulExp | AddExp ("+" | "-") MulExp;
 class AddExpAST : public BaseAST {
  public:
-  const char* ADD_NAME = "+";
-  const char* SUB_NAME = "-";
-
   enum aex_t { MulExp, AddOPMul };
   aex_t aex;
   enum aop_t { Add, Sub };
@@ -197,7 +184,73 @@ class AddExpAST : public BaseAST {
   void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
 
  private:
-  const char* enum_name() const;
+  const char* op_name() const;
+  string type() const;
+};
+
+// RelExp      ::= AddExp | RelExp ("<" | ">" | "<=" | ">=") AddExp;
+class RelExpAST : public BaseAST {
+ public:
+  enum rex_t { AddExp, RelOPAdd };
+  rex_t rex;
+  enum rop_t { LessThan, LessEqual, GreaterThan, GreaterEqual };
+  rop_t rop;
+  unique_ptr<BaseAST> rexp;
+  unique_ptr<BaseAST> aexp;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+
+ private:
+  const char* op_name() const;
+  string type() const;
+};
+
+// EqExp       ::= RelExp | EqExp ("==" | "!=") RelExp;
+class EqExpAST : public BaseAST {
+ public:
+  enum eex_t { RelExp, EqOPRel };
+  eex_t eex;
+  enum eop_t { Equal, NotEqual };
+  eop_t eop;
+  unique_ptr<BaseAST> eexp;
+  unique_ptr<BaseAST> rexp;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+
+ private:
+  const char* op_name() const;
+  string type() const;
+};
+
+// LAndExp     ::= EqExp | LAndExp "&&" EqExp;
+class LAndExpAst : public BaseAST {
+ public:
+  enum laex_t { EqExp, LAOPEq };
+  laex_t laex;
+  unique_ptr<BaseAST> laexp;
+  unique_ptr<BaseAST> eexp;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+
+ private:
+  string type() const;
+};
+
+// LOrExp      ::= LAndExp | LOrExp "||" LAndExp;
+class LOrExpAst : public BaseAST {
+ public:
+  enum loex_t { LAndExp, LOOPLA };
+  loex_t loex;
+  unique_ptr<BaseAST> laexp;
+  unique_ptr<BaseAST> loexp;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+
+ private:
   string type() const;
 };
 

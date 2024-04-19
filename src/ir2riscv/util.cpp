@@ -1,3 +1,4 @@
+#include "util.h"
 #include "ir2riscv.h"
 
 const char* parse_symbol(const char* symbol_name) {

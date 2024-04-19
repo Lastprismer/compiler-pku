@@ -6,7 +6,7 @@ extern int yyparse(unique_ptr<BaseAST>& ast);
 string sysy2ir(const char* input,
                const char* output,
                bool output2file,
-               bool output2stdout) {
+               bool output2stdout = true) {
   yyin = fopen(input, "r");
   assert(yyin);
 
@@ -15,24 +15,24 @@ string sysy2ir(const char* input,
   auto ret = yyparse(ast);
   assert(!ret);
 
-  stringstream ss, pr;
-  ast->Print(cout, 0);
-  ast->Dump(cout, nullptr, -1);
+  stringstream prt, dp;
+  ast->Print(prt, 0);
+  ast->Dump(dp, nullptr, -1);
 
   if (output2stdout) {
-    cout << "Structure: \n" << pr.str() << endl;
-    cout << "IR code:\n" << ss.str() << endl;
+    cout << "Structure: \n" << prt.str() << endl;
+    cout << "IR code:\n" << dp.str() << endl;
   }
 
   if (output2file) {
     // 输出到文件
     ofstream outfile(output);
     if (outfile.is_open()) {
-      outfile << ss.str();
+      outfile << dp.str();
       outfile.close();
     } else {
       cerr << "无法打开文件：" << output << endl;
     }
   }
-  return ss.str();
+  return dp.str();
 }

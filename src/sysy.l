@@ -18,7 +18,7 @@ using namespace std;
 /* 空白符和注释 */
 WhiteSpace        [ \t\n\r]*
 LineComment       "//".*
-MultilineComment  "/*".*?"*/"
+MultilineComment  "/*"([^*]|\*+[^*/])*\*+"/"
 
 /* 标识符 */
 Identifier        [a-zA-Z_][a-zA-Z0-9_]*
@@ -27,6 +27,15 @@ Identifier        [a-zA-Z_][a-zA-Z0-9_]*
 Decimal           [1-9][0-9]*
 Octal             0[0-7]*
 Hexadecimal       0[xX][0-9a-fA-F]+
+
+OpLE              <=
+OpLT              <
+OpGE              >=
+OpGT              >
+OpEQ              ==
+OpNE              !=
+OpAnd             &&
+OpOr              "||"
 
 %%
 
@@ -42,6 +51,15 @@ Hexadecimal       0[xX][0-9a-fA-F]+
 {Decimal}           { yylval.int_val = strtol(yytext, nullptr, 0); return INT_CONST; }
 {Octal}             { yylval.int_val = strtol(yytext, nullptr, 0); return INT_CONST; }
 {Hexadecimal}       { yylval.int_val = strtol(yytext, nullptr, 0); return INT_CONST; }
+
+{OpLE}              { return OPLE; }
+{OpLT}              { return OPLT; }
+{OpGE}              { return OPGE; }
+{OpGT}              { return OPGT; }
+{OpEQ}              { return OPEQ; }
+{OpNE}              { return OPNE; }
+{OpAnd}             { return OPAND; }
+{OpOr}              { return OPOR; }
 
 .                   { return yytext[0]; }
 

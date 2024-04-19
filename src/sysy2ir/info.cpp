@@ -58,35 +58,34 @@ void CodeFuncInfo::push_imm(int int_const) {
   node_stack.push_front(comp);
 }
 
-void CodeFuncInfo::write_unary_inst(ostream& os, char op) {
-  if (op == '+') {
+void CodeFuncInfo::write_unary_inst(ostream& os, OpID op) {
+  if (op == OpID::UNARY_POS) {
     return;
   }
   assert(node_stack.size() >= 1);
   // 只有两种运算
-  // 1. a = -b，等效于 a = 0 - b，推出b，加入0，推入b，调用双目sub
-  // 2. a = !b，原样处理
-  if (op == '-') {
+  // 1. a = -b，等效于 a = 0 - b，推出b，加入0，推入b，调用sub
+  // 2. a = !b，等效于a = 0 == b，推出b，加入0，推入b，调用eq
+  if (op == OpID::UNARY_NEG) {
     Node node = node_stack.front();
     node_stack.pop_front();
     push_imm(0);
     node_stack.push_front(node);
-    write_binary_inst(os, '-');
+    write_binary_inst(os, OpID::BI_SUB);
     return;
+  } else if (op == OpID::UNARY_NOT) {
+    Node node = node_stack.front();
+    node_stack.pop_front();
+    push_imm(0);
+    node_stack.push_front(node);
+    write_binary_inst(os, OpID::LG_EQ);
+    return;
+  } else {
+    assert(false);
   }
-
-  int new_symbol = create_temp_symbol();
-  os << ind_sp() << "%" << new_symbol << " = eq 0, ";
-
-  Node node = node_stack.front();
-  node_stack.pop_front();
-  parse_node(os, node);
-  os << endl;
-  push_symbol(new_symbol);
-  return;
 }
 
-void CodeFuncInfo::write_binary_inst(ostream& os, char op) {
+void CodeFuncInfo::write_binary_inst(ostream& os, OpID op) {
   assert(node_stack.size() >= 2);
   Node right = node_stack.front();
   node_stack.pop_front();
@@ -95,26 +94,7 @@ void CodeFuncInfo::write_binary_inst(ostream& os, char op) {
 
   int new_symbol = create_temp_symbol();
   os << ind_sp() << "%" << new_symbol << " = ";
-  switch (op) {
-    case '+':
-      os << "add";
-      break;
-    case '-':
-      os << "sub";
-      break;
-    case '*':
-      os << "mul";
-      break;
-    case '/':
-      os << "div";
-      break;
-    case '%':
-      os << "mod";
-      break;
-    default:
-      assert(false);
-  }
-  os << ' ';
+  os << BiOp2koopa(op) << ' ';
   parse_node(os, left);
   os << ", ";
   parse_node(os, right);

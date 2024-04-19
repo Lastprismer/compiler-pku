@@ -6,6 +6,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include "util.h"
 
 using namespace std;
 
@@ -47,9 +48,9 @@ class CodeFuncInfo : public CodeCompInfo {
   // 推入立即数
   void push_imm(int int_const);
   // 输入单目运算符，输出指令
-  void write_unary_inst(ostream& os, char op);
+  void write_unary_inst(ostream& os, OpID op);
   // 输入双目运算符，输出指令
-  void write_binary_inst(ostream& os, char op);
+  void write_binary_inst(ostream& os, OpID op);
 
  private:
   int create_temp_symbol();

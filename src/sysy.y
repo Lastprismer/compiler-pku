@@ -38,12 +38,13 @@ using namespace std;
 // lexer 返回的所有 token 种类的声明
 // 注意 IDENT 和 INT_CONST 会返回 token 的值, 分别对应 str_val 和 int_val
 %token INT RETURN
+%token OPLE OPLT OPGE OPGT OPEQ OPNE OPAND OPOR
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
 %type <ast_val> FuncDef FuncType Block Stmt
-%type <ast_val> Exp PrimaryExp Number UnaryExp UnaryOp MulExp AddExp
+%type <ast_val> Exp PrimaryExp Number UnaryExp UnaryOp MulExp AddExp RelExp EqExp LAndExp LOrExp
 
 %%
 
@@ -97,7 +98,7 @@ Block
   ;
 
 Stmt
-  : RETURN Exp ';' {
+  : RETURN LOrExp ';' {
     auto ast = new StmtAST();
     ast->exp = unique_ptr<BaseAST>($2);
     $$ = ast;
@@ -130,9 +131,9 @@ Number
   ;
 
 Exp
-  : AddExp {
+  : LOrExp {
     auto ast = new ExpAST();
-    ast->aexp = unique_ptr<BaseAST>($1);
+    ast->loexp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;
@@ -232,6 +233,96 @@ AddExp
   }
   ;
 
+RelExp
+  : AddExp {
+    auto ast = new RelExpAST();
+    ast->rex = RelExpAST::rex_t::AddExp;
+    ast->aexp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | RelExp OPLT AddExp {
+    auto ast = new RelExpAST();
+    ast->rex = RelExpAST::rex_t::RelOPAdd;
+    ast->rop = RelExpAST::rop_t::LessThan;
+    ast->rexp = unique_ptr<BaseAST>($1);
+    ast->aexp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  | RelExp OPLE AddExp {
+    auto ast = new RelExpAST();
+    ast->rex = RelExpAST::rex_t::RelOPAdd;
+    ast->rop = RelExpAST::rop_t::LessEqual;
+    ast->rexp = unique_ptr<BaseAST>($1);
+    ast->aexp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  | RelExp OPGT AddExp {
+    auto ast = new RelExpAST();
+    ast->rex = RelExpAST::rex_t::RelOPAdd;
+    ast->rop = RelExpAST::rop_t::GreaterThan;
+    ast->rexp = unique_ptr<BaseAST>($1);
+    ast->aexp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  | RelExp OPGE AddExp {
+    auto ast = new RelExpAST();
+    ast->rex = RelExpAST::rex_t::RelOPAdd;
+    ast->rop = RelExpAST::rop_t::GreaterEqual;
+    ast->rexp = unique_ptr<BaseAST>($1);
+    ast->aexp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+
+EqExp
+  : RelExp {
+    auto ast = new EqExpAST();
+    ast->eex = EqExpAST::eex_t::RelExp;
+    ast->rexp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | EqExp OPEQ RelExp {
+    auto ast = new EqExpAST();
+    ast->eex = EqExpAST::eex_t::EqOPRel;
+    ast->eop = EqExpAST::eop_t::Equal;
+    ast->eexp = unique_ptr<BaseAST>($1);
+    ast->rexp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  | EqExp OPNE RelExp {
+    auto ast = new EqExpAST();
+    ast->eex = EqExpAST::eex_t::EqOPRel;
+    ast->eop = EqExpAST::eop_t::NotEqual;
+    ast->eexp = unique_ptr<BaseAST>($1);
+    ast->rexp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+LAndExp
+  : EqExp {
+    auto ast = new LAndExpAst();
+    ast->laex = LAndExpAst::laex_t::EqExp;
+    ast->eexp = unique_ptr<BaseAST>($1);
+  }
+  | LAndExp OPAND EqExp {
+    auto ast = new LAndExpAst();
+    ast->laex = LAndExpAst::laex_t::LAOPEq;
+    ast->laexp = unique_ptr<BaseAST>($1);
+    ast->eexp = unique_ptr<BaseAST>($3);
+  }
+
+LOrExp
+  : LAndExp {
+    auto ast = new LOrExpAst();
+    ast->loex = LOrExpAst::loex_t::LAndExp;
+    ast->laexp = unique_ptr<BaseAST>($1);
+  }
+  | LOrExp OPOR LAndExp {
+    auto ast = new LOrExpAst();
+    ast->loex = LOrExpAst::loex_t::LOOPLA;
+    ast->loexp = unique_ptr<BaseAST>($1);
+    ast->laexp = unique_ptr<BaseAST>($3);
+  }
 %%
 
 // 定义错误处理函数, 其中第二个参数是错误信息
