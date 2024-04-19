@@ -34,7 +34,7 @@ OpGE              >=
 OpGT              >
 OpEQ              ==
 OpNE              !=
-OpAnd             &&
+OpAnd             "&&"
 OpOr              "||"
 
 %%

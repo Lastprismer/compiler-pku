@@ -51,6 +51,8 @@ class CodeFuncInfo : public CodeCompInfo {
   void write_unary_inst(ostream& os, OpID op);
   // 输入双目运算符，输出指令
   void write_binary_inst(ostream& os, OpID op);
+  // 输入逻辑运算符and or，输出指令
+  void write_logic_inst(ostream& os, OpID op);
 
  private:
   int create_temp_symbol();

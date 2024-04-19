@@ -98,9 +98,17 @@ Block
   ;
 
 Stmt
-  : RETURN LOrExp ';' {
+  : RETURN Exp ';' {
     auto ast = new StmtAST();
     ast->exp = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  ;
+
+Exp
+  : LOrExp {
+    auto ast = new ExpAST();
+    ast->loexp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;
@@ -126,14 +134,6 @@ Number
   : INT_CONST {
     auto ast = new NumberAST();
     ast->int_const = $1;
-    $$ = ast;
-  }
-  ;
-
-Exp
-  : LOrExp {
-    auto ast = new ExpAST();
-    ast->loexp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;
@@ -272,6 +272,7 @@ RelExp
     ast->aexp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
+  ;
 
 EqExp
   : RelExp {
@@ -303,26 +304,32 @@ LAndExp
     auto ast = new LAndExpAst();
     ast->laex = LAndExpAst::laex_t::EqExp;
     ast->eexp = unique_ptr<BaseAST>($1);
+    $$ = ast;
   }
   | LAndExp OPAND EqExp {
     auto ast = new LAndExpAst();
     ast->laex = LAndExpAst::laex_t::LAOPEq;
     ast->laexp = unique_ptr<BaseAST>($1);
     ast->eexp = unique_ptr<BaseAST>($3);
+    $$ = ast;
   }
+  ;
 
 LOrExp
   : LAndExp {
     auto ast = new LOrExpAst();
     ast->loex = LOrExpAst::loex_t::LAndExp;
     ast->laexp = unique_ptr<BaseAST>($1);
+    $$ = ast;
   }
   | LOrExp OPOR LAndExp {
     auto ast = new LOrExpAst();
     ast->loex = LOrExpAst::loex_t::LOOPLA;
     ast->loexp = unique_ptr<BaseAST>($1);
     ast->laexp = unique_ptr<BaseAST>($3);
+    $$ = ast;
   }
+  ;
 %%
 
 // 定义错误处理函数, 其中第二个参数是错误信息

@@ -548,7 +548,7 @@ void LAndExpAst::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
   if (laex == laex_t::LAOPEq) {
     laexp->Dump(os, info, indent);
     eexp->Dump(os, info, indent);
-    info->write_binary_inst(os, OpID::LG_AND);
+    info->write_logic_inst(os, OpID::LG_AND);
   } else {
     eexp->Dump(os, info, indent);
   }
@@ -593,7 +593,7 @@ void LOrExpAst::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
   if (loex == loex_t::LOOPLA) {
     loexp->Dump(os, info, indent);
     laexp->Dump(os, info, indent);
-    info->write_binary_inst(os, OpID::LG_OR);
+    info->write_logic_inst(os, OpID::LG_OR);
   } else {
     laexp->Dump(os, info, indent);
   }

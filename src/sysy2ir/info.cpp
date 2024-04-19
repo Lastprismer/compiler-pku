@@ -102,6 +102,26 @@ void CodeFuncInfo::write_binary_inst(ostream& os, OpID op) {
   push_symbol(new_symbol);
 }
 
+void CodeFuncInfo::write_logic_inst(ostream& os, OpID op) {
+  assert(node_stack.size() >= 2);
+  assert(op == OpID::LG_AND || op == OpID::LG_OR);
+
+  Node right = node_stack.front();
+  node_stack.pop_front();
+
+  // left -> bool
+  push_imm(0);
+  write_binary_inst(os, OpID::LG_NEQ);
+
+  // right -> bool
+  node_stack.push_front(right);
+  push_imm(0);
+  write_binary_inst(os, OpID::LG_NEQ);
+
+  // logic
+  write_binary_inst(os, op);
+}
+
 int CodeFuncInfo::create_temp_symbol() {
   return var_cnt++;
 }
