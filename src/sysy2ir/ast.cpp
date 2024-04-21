@@ -11,9 +11,8 @@ void CompUnitAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void CompUnitAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
-  // 这里info应该是nullptr
-  func_def->Dump(os, info, indent + 1);
+void CompUnitAST::Dump() {
+  func_def->Dump();
 }
 
 #pragma endregion
@@ -23,21 +22,22 @@ void CompUnitAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
 void FuncDefAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "FuncDefAST {" << endl;
-  func_type->Print(os, indent + 1);
+  funcType->Print(os, indent + 1);
   make_indent(os, indent + 1);
-  os << "IDENT: \"" << ident << "\"," << endl;
+  os << "IDENT: \"" << funcName << "\"," << endl;
   block->Print(os, indent + 1);
   make_indent(os, indent);
   os << " }," << endl;
 }
 
-void FuncDefAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
-  func_info = make_shared<CodeFuncInfo>();
-  func_info->func_name = ident;
-  func_type->Dump(os, func_info, indent + 1);
-  func_info->write_prologue(os);
-  block->Dump(os, func_info, indent);
-  func_info->write_epilogue(os);
+void FuncDefAST::Dump() {
+  IRGenerator& gen = IRGenerator::getInstance();
+  funcType->Dump();
+  gen.functionName = funcName;
+
+  gen.writeFuncPrologue();
+  block->Dump();
+  gen.writeFuncEpilogue();
 }
 
 #pragma endregion
@@ -49,8 +49,8 @@ void FuncTypeAST::Print(ostream& os, int indent) const {
   os << "FuncTypeAST: int," << endl;
 }
 
-void FuncTypeAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
-  info->ret_type = "i32";
+void FuncTypeAST::Dump() {
+  IRGenerator::getInstance().returnType = "i32";
 }
 
 #pragma endregion
@@ -65,11 +65,10 @@ void BlockAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void BlockAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
-  make_indent(os, indent);
-  os << "%"
-     << "entry:" << endl;
-  stmt->Dump(os, info, indent + 1);
+void BlockAST::Dump() {
+  IRGenerator& gen = IRGenerator::getInstance();
+  gen.writeBlockPrologue();
+  stmt->Dump();
 }
 
 #pragma endregion
@@ -84,8 +83,8 @@ void StmtAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void StmtAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
-  exp->Dump(os, info, indent);
+void StmtAST::Dump() {
+  exp->Dump();
 }
 
 #pragma endregion
@@ -102,8 +101,8 @@ void ExpAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void ExpAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
-  loexp->Dump(os, info, indent);
+void ExpAST::Dump() {
+  loexp->Dump();
 }
 
 #pragma endregion
@@ -126,15 +125,13 @@ void PrimaryExpAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void PrimaryExpAST::Dump(ostream& os,
-                         shared_ptr<CodeFuncInfo> info,
-                         int indent) {
+void PrimaryExpAST::Dump() {
   switch (pex) {
     case Brackets:
-      exp->Dump(os, info, indent);
+      exp->Dump();
       break;
     case Number:
-      number->Dump(os, info, indent);
+      number->Dump();
       break;
     default:
       assert(false);
@@ -165,8 +162,8 @@ void NumberAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void NumberAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
-  info->push_imm(int_const);
+void NumberAST::Dump() {
+  IRGenerator::getInstance().pushImm(int_const);
 }
 
 #pragma endregion
@@ -190,14 +187,14 @@ void UnaryExpAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void UnaryExpAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
+void UnaryExpAST::Dump() {
   switch (uex) {
     case Unary:
-      uexp->Dump(os, info, indent);
-      uop->Dump(os, info, indent);
+      uexp->Dump();
+      uop->Dump();
       break;
     case Primary:
-      prim->Dump(os, info, indent);
+      prim->Dump();
       break;
     default:
       assert(false);
@@ -225,16 +222,17 @@ void UnaryOPAST::Print(ostream& os, int indent) const {
   os << "UnaryOPAST { " << op_name() << " } " << endl;
 }
 
-void UnaryOPAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
+void UnaryOPAST::Dump() {
+  IRGenerator& gen = IRGenerator::getInstance();
   switch (uop) {
     case uop_t::Pos:
-      info->write_unary_inst(os, OpID::UNARY_POS);
+      gen.writeUnaryInst(OpID::UNARY_POS);
       break;
     case uop_t::Neg:
-      info->write_unary_inst(os, OpID::UNARY_NEG);
+      gen.writeUnaryInst(OpID::UNARY_NEG);
       break;
     case uop_t::Not:
-      info->write_unary_inst(os, OpID::UNARY_NOT);
+      gen.writeUnaryInst(OpID::UNARY_NOT);
       break;
     default:
       assert(false);
@@ -278,25 +276,26 @@ void MulExpAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void MulExpAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
+void MulExpAST::Dump() {
   if (mex == mex_t::MulOPUnary) {
-    mexp->Dump(os, info, indent);
-    uexp->Dump(os, info, indent);
+    mexp->Dump();
+    uexp->Dump();
+    IRGenerator& gen = IRGenerator::getInstance();
     switch (mop) {
       case mop_t::Mul:
-        info->write_binary_inst(os, OpID::BI_MUL);
+        gen.writeBinaryInst(OpID::BI_MUL);
         break;
       case mop_t::Div:
-        info->write_binary_inst(os, OpID::BI_DIV);
+        gen.writeBinaryInst(OpID::BI_DIV);
         break;
       case mop_t::Mod:
-        info->write_binary_inst(os, OpID::BI_MOD);
+        gen.writeBinaryInst(OpID::BI_MOD);
         break;
       default:
         assert(false);
     }
   } else {
-    uexp->Dump(os, info, indent);
+    uexp->Dump();
   }
 }
 
@@ -346,22 +345,23 @@ void AddExpAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void AddExpAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
+void AddExpAST::Dump() {
   if (aex == aex_t::AddOPMul) {
-    aexp->Dump(os, info, indent);
-    mexp->Dump(os, info, indent);
+    aexp->Dump();
+    mexp->Dump();
+    IRGenerator& gen = IRGenerator::getInstance();
     switch (aop) {
       case aop_t::Add:
-        info->write_binary_inst(os, OpID::BI_ADD);
+        gen.writeBinaryInst(OpID::BI_ADD);
         break;
       case aop_t::Sub:
-        info->write_binary_inst(os, OpID::BI_SUB);
+        gen.writeBinaryInst(OpID::BI_SUB);
         break;
       default:
         break;
     }
   } else {
-    mexp->Dump(os, info, indent);
+    mexp->Dump();
   }
 }
 
@@ -407,29 +407,30 @@ void RelExpAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void RelExpAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
+void RelExpAST::Dump() {
   if (rex == rex_t::RelOPAdd) {
-    rexp->Dump(os, info, indent);
-    aexp->Dump(os, info, indent);
+    rexp->Dump();
+    aexp->Dump();
+    IRGenerator& gen = IRGenerator::getInstance();
     switch (rop) {
       case rop_t::LessThan:
-        info->write_binary_inst(os, OpID::LG_LT);
+        gen.writeBinaryInst(OpID::LG_LT);
         break;
       case rop_t::LessEqual:
-        info->write_binary_inst(os, OpID::LG_LE);
+        gen.writeBinaryInst(OpID::LG_LE);
         break;
       case rop_t::GreaterThan:
-        info->write_binary_inst(os, OpID::LG_GT);
+        gen.writeBinaryInst(OpID::LG_GT);
         break;
       case rop_t::GreaterEqual:
-        info->write_binary_inst(os, OpID::LG_GE);
+        gen.writeBinaryInst(OpID::LG_GE);
         break;
       default:
         assert(false);
         break;
     }
   } else {
-    aexp->Dump(os, info, indent);
+    aexp->Dump();
   }
 }
 
@@ -481,22 +482,23 @@ void EqExpAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void EqExpAST::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
+void EqExpAST::Dump() {
   if (eex == eex_t::EqOPRel) {
-    eexp->Dump(os, info, indent);
-    rexp->Dump(os, info, indent);
+    eexp->Dump();
+    rexp->Dump();
+    IRGenerator& gen = IRGenerator::getInstance();
     switch (eop) {
       case eop_t::Equal:
-        info->write_binary_inst(os, OpID::LG_EQ);
+        gen.writeBinaryInst(OpID::LG_EQ);
         break;
       case eop_t::NotEqual:
-        info->write_binary_inst(os, OpID::LG_NEQ);
+        gen.writeBinaryInst(OpID::LG_NEQ);
         break;
       default:
         break;
     }
   } else {
-    rexp->Dump(os, info, indent);
+    rexp->Dump();
   }
 }
 
@@ -544,13 +546,13 @@ void LAndExpAst::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void LAndExpAst::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
+void LAndExpAst::Dump() {
   if (laex == laex_t::LAOPEq) {
-    laexp->Dump(os, info, indent);
-    eexp->Dump(os, info, indent);
-    info->write_logic_inst(os, OpID::LG_AND);
+    laexp->Dump();
+    eexp->Dump();
+    IRGenerator::getInstance().writeLogicInst(OpID::LG_AND);
   } else {
-    eexp->Dump(os, info, indent);
+    eexp->Dump();
   }
 }
 
@@ -589,13 +591,13 @@ void LOrExpAst::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void LOrExpAst::Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) {
+void LOrExpAst::Dump() {
   if (loex == loex_t::LOOPLA) {
-    loexp->Dump(os, info, indent);
-    laexp->Dump(os, info, indent);
-    info->write_logic_inst(os, OpID::LG_OR);
+    loexp->Dump();
+    laexp->Dump();
+    IRGenerator::getInstance().writeLogicInst(OpID::LG_OR);
   } else {
-    laexp->Dump(os, info, indent);
+    laexp->Dump();
   }
 }
 

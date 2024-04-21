@@ -41,6 +41,21 @@ void addi(ostream& os, const reg_t& rd, const reg_t& rs1, int imm);
 void sub(ostream& os, const string& rd, const string& rs1, const string& rs2);
 void sub(ostream& os, const reg_t& rd, const reg_t& rs1, const reg_t& rs2);
 
+// 语法：mul {rd}, {rs1}, {rs2}
+// 行为：rd = rs1 * rs2
+void mul(ostream& os, const string& rd, const string& rs1, const string& rs2);
+void mul(ostream& os, const reg_t& rd, const reg_t& rs1, const reg_t& rs2);
+
+// 语法：div {rd}, {rs1}, {rs2}
+// 行为：rd = rs1 / rs2
+void div(ostream& os, const string& rd, const string& rs1, const string& rs2);
+void div(ostream& os, const reg_t& rd, const reg_t& rs1, const reg_t& rs2);
+
+// 语法：rem {rd}, {rs1}, {rs2}
+// 行为：rd = rs1 % rs2
+void rem(ostream& os, const string& rd, const string& rs1, const string& rs2);
+void rem(ostream& os, const reg_t& rd, const reg_t& rs1, const reg_t& rs2);
+
 // 语法：seqz {rd}, {rs}
 // 行为：rs == 0 ? rd = 1 : rd = 0
 void seqz(ostream& os, const string& rd, const string& rs);

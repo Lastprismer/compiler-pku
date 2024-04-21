@@ -6,7 +6,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
-#include "info.h"
+#include "gen.h"
 #include "sysy2ir.h"
 
 #define INDENT_LEN 4
@@ -41,7 +41,7 @@ class BaseAST {
  public:
   virtual ~BaseAST() = default;
   virtual void Print(ostream& os, int indent) const = 0;
-  virtual void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) = 0;
+  virtual void Dump() = 0;
 };
 
 // CompUnit  ::= FuncDef;
@@ -50,26 +50,25 @@ class CompUnitAST : public BaseAST {
   unique_ptr<BaseAST> func_def;
 
   void Print(ostream& os, int indent) const override;
-  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+  void Dump() override;
 };
 
 // FuncDef   ::= FuncType IDENT "(" ")" Block;
 class FuncDefAST : public BaseAST {
  public:
-  unique_ptr<BaseAST> func_type;
-  string ident;
+  unique_ptr<BaseAST> funcType;
+  string funcName;
   unique_ptr<BaseAST> block;
-  shared_ptr<CodeFuncInfo> func_info;
 
   void Print(ostream& os, int indent) const override;
-  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+  void Dump() override;
 };
 
 // FuncType  ::= "int";
 class FuncTypeAST : public BaseAST {
  public:
   void Print(ostream& os, int indent) const override;
-  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+  void Dump() override;
 };
 
 // Block     ::= "{" Stmt "}";
@@ -78,7 +77,7 @@ class BlockAST : public BaseAST {
   unique_ptr<BaseAST> stmt;
 
   void Print(ostream& os, int indent) const override;
-  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+  void Dump() override;
 };
 
 // Stmt        ::= "return" Exp ";";
@@ -87,7 +86,7 @@ class StmtAST : public BaseAST {
   unique_ptr<BaseAST> exp;
 
   void Print(ostream& os, int indent) const override;
-  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+  void Dump() override;
 };
 
 // Exp         ::= LOrExp;
@@ -96,7 +95,7 @@ class ExpAST : public BaseAST {
   unique_ptr<BaseAST> loexp;
 
   void Print(ostream& os, int indent) const override;
-  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+  void Dump() override;
 };
 
 // PrimaryExp  ::= "(" Exp ")" | Number;
@@ -108,7 +107,7 @@ class PrimaryExpAST : public BaseAST {
   unique_ptr<BaseAST> number;
 
   void Print(ostream& os, int indent) const override;
-  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+  void Dump() override;
 
  private:
   const char* type() const;
@@ -120,7 +119,7 @@ class NumberAST : public BaseAST {
   int int_const;
 
   void Print(ostream& os, int indent) const override;
-  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+  void Dump() override;
 };
 
 // UnaryExp    ::= PrimaryExp | UnaryOp UnaryExp;
@@ -133,7 +132,7 @@ class UnaryExpAST : public BaseAST {
   unique_ptr<BaseAST> uexp;
 
   void Print(ostream& os, int indent) const override;
-  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+  void Dump() override;
 
  private:
   const char* type() const;
@@ -146,7 +145,7 @@ class UnaryOPAST : public BaseAST {
   uop_t uop;
 
   void Print(ostream& os, int indent) const override;
-  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+  void Dump() override;
 
  private:
   const char* op_name() const;
@@ -163,7 +162,7 @@ class MulExpAST : public BaseAST {
   unique_ptr<BaseAST> uexp;
 
   void Print(ostream& os, int indent) const override;
-  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+  void Dump() override;
 
  private:
   const char* op_name() const;
@@ -181,7 +180,7 @@ class AddExpAST : public BaseAST {
   unique_ptr<BaseAST> aexp;
 
   void Print(ostream& os, int indent) const override;
-  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+  void Dump() override;
 
  private:
   const char* op_name() const;
@@ -199,7 +198,7 @@ class RelExpAST : public BaseAST {
   unique_ptr<BaseAST> aexp;
 
   void Print(ostream& os, int indent) const override;
-  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+  void Dump() override;
 
  private:
   const char* op_name() const;
@@ -217,7 +216,7 @@ class EqExpAST : public BaseAST {
   unique_ptr<BaseAST> rexp;
 
   void Print(ostream& os, int indent) const override;
-  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+  void Dump() override;
 
  private:
   const char* op_name() const;
@@ -233,7 +232,7 @@ class LAndExpAst : public BaseAST {
   unique_ptr<BaseAST> eexp;
 
   void Print(ostream& os, int indent) const override;
-  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+  void Dump() override;
 
  private:
   string type() const;
@@ -248,7 +247,7 @@ class LOrExpAst : public BaseAST {
   unique_ptr<BaseAST> loexp;
 
   void Print(ostream& os, int indent) const override;
-  void Dump(ostream& os, shared_ptr<CodeFuncInfo> info, int indent) override;
+  void Dump() override;
 
  private:
   string type() const;

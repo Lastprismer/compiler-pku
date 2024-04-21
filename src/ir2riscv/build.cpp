@@ -44,6 +44,30 @@ void sub(ostream& os, const reg_t& rd, const reg_t& rs1, const reg_t& rs2) {
   sub(os, regstr(rd), regstr(rs1), regstr(rs2));
 }
 
+void mul(ostream& os, const string& rd, const string& rs1, const string& rs2) {
+  os << "  mul " << rd << ", " << rs1 << ", " << rs2 << endl;
+}
+
+void mul(ostream& os, const reg_t& rd, const reg_t& rs1, const reg_t& rs2) {
+  mul(os, regstr(rd), regstr(rs1), regstr(rs2));
+}
+
+void div(ostream& os, const string& rd, const string& rs1, const string& rs2) {
+  os << "  div " << rd << ", " << rs1 << ", " << rs2 << endl;
+}
+
+void div(ostream& os, const reg_t& rd, const reg_t& rs1, const reg_t& rs2) {
+  div(os, regstr(rd), regstr(rs1), regstr(rs2));
+}
+
+void rem(ostream& os, const string& rd, const string& rs1, const string& rs2) {
+  os << "  rem " << rd << ", " << rs1 << ", " << rs2 << endl;
+}
+
+void rem(ostream& os, const reg_t& rd, const reg_t& rs1, const reg_t& rs2) {
+  rem(os, regstr(rd), regstr(rs1), regstr(rs2));
+}
+
 void seqz(ostream& os, const string& rd, const string& rs) {
   os << "  seqz " << rd << ", " << rs << endl;
 }

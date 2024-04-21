@@ -16,10 +16,13 @@ string sysy2ir(const char* input,
   assert(!ret);
 
   stringstream prt, dp;
-  ast->Print(prt, 0);
-  ast->Dump(dp, nullptr, -1);
 
-  if (output2stdout) {
+  IRGenerator::getInstance().setting.setIndent(0).setOs(dp);
+
+  ast->Print(prt, 0);
+  ast->Dump();
+
+  if (true) {
     cout << "Structure: \n" << prt.str() << endl;
     cout << "IR code:\n" << dp.str() << endl;
   }
