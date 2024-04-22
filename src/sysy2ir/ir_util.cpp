@@ -1,7 +1,8 @@
-#include "util.h"
+#include "ir_util.h"
+
+namespace ir {
 
 using namespace std;
-
 string BiOp2koopa(OpID id) {
   const char* s;
   switch (id) {
@@ -45,10 +46,9 @@ string BiOp2koopa(OpID id) {
       s = "ge";
       break;
     default:
-      cout << (int)id;
       assert(false);
   }
   return string(s);
 }
 
-// ne, eq, gt, lt, ge, le, add, sub, mul, div, mod, and, or, xor, shl, shr, sar.
+}  // namespace ir

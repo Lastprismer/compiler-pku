@@ -1,13 +1,15 @@
-#include "ir2riscv.h"
+#include "riscv_ir2riscv.h"
+
+namespace riscv {
 
 void ir2riscv(string ircode, const char* output) {
   koopa_raw_program_builder_t builder;
   koopa_raw_program_t program = get_raw_program(ircode, builder);
-  IRFuncInfo info;
-
   ofstream outfile(output);
+  RiscvGenerator::getInstance().setting.setOs(outfile);
+
   if (outfile.is_open()) {
-    visit_program(program, outfile, info);
+    visit_program(program);
     outfile.close();
   } else {
     cerr << "无法打开文件：" << output << endl;
@@ -33,3 +35,5 @@ koopa_raw_program_t get_raw_program(string ircode,
 void release_builder(koopa_raw_program_builder_t& builder) {
   koopa_delete_raw_program_builder(builder);
 }
+
+}  // namespace riscv

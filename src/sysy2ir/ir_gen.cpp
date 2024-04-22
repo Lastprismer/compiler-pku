@@ -1,4 +1,6 @@
-#include "gen.h"
+#include "ir_gen.h"
+
+namespace ir {
 
 Node::Node() {}
 
@@ -10,36 +12,13 @@ Node::Node(const Node& n) : tag(n.tag), content(n.content) {}
 
 Node::Node(Node&& n) : tag(n.tag), content(n.content) {}
 
-GenSettings& GenSettings::setOs(ostream& o) {
-  os = &o;
-  return *this;
-}
-
-GenSettings& GenSettings::setIndent(int val) {
-  indent = val;
-  return *this;
-}
-
-int& GenSettings::getIndent() {
-  return indent;
-}
-
-ostream& GenSettings::getOs() {
-  return *os;
-}
-
-string GenSettings::getIndentStr() {
-  return string(indent, ' ');
-}
-
-int IRGenerator::variablePool = 0;
-
 IRGenerator::IRGenerator() {
   setting.setOs(cout).setIndent(0);
 
-  functionName = "";
-  returnType = "";
-  nodeStack = deque<Node>();
+  variable_pool = 0;
+  function_name = "";
+  return_type = "";
+  node_stack = deque<Node>();
 }
 
 IRGenerator& IRGenerator::getInstance() {
@@ -48,15 +27,15 @@ IRGenerator& IRGenerator::getInstance() {
 }
 
 void IRGenerator::writeFuncPrologue() {
-  setting.getOs() << "fun @" << functionName << "(): " << returnType << "{\n";
+  setting.getOs() << "fun @" << function_name << "(): " << return_type << "{\n";
   return;
 }
 
 void IRGenerator::writeFuncEpilogue() {
   ostream& os = setting.getOs();
-  assert(nodeStack.size() == 1);
+  assert(node_stack.size() == 1);
   os << setting.getIndentStr() << "ret ";
-  Node node = nodeStack.front();
+  Node node = node_stack.front();
   if (node.tag == imm) {
     os << node.content.imm;
   } else if (node.tag == symbol) {
@@ -86,36 +65,36 @@ void IRGenerator::pushSymbol(int syb) {
     comp.content.symbol_id = registerNewSymbol();
   }
   comp.content.symbol_id = syb;
-  nodeStack.push_front(comp);
+  node_stack.push_front(comp);
 }
 
 void IRGenerator::pushImm(int int_const) {
   Node comp;
   comp.tag = imm;
   comp.content.imm = int_const;
-  nodeStack.push_front(comp);
+  node_stack.push_front(comp);
 }
 
 void IRGenerator::writeUnaryInst(OpID op) {
   if (op == OpID::UNARY_POS) {
     return;
   }
-  assert(nodeStack.size() >= 1);
+  assert(node_stack.size() >= 1);
   // 只有两种运算
   // 1. a = -b，等效于 a = 0 - b，推出b，加入0，推入b，调用sub
   // 2. a = !b，等效于a = 0 == b，推出b，加入0，推入b，调用eq
   if (op == OpID::UNARY_NEG) {
-    Node node = nodeStack.front();
-    nodeStack.pop_front();
+    Node node = node_stack.front();
+    node_stack.pop_front();
     pushImm(0);
-    nodeStack.push_front(node);
+    node_stack.push_front(node);
     writeBinaryInst(OpID::BI_SUB);
     return;
   } else if (op == OpID::UNARY_NOT) {
-    Node node = nodeStack.front();
-    nodeStack.pop_front();
+    Node node = node_stack.front();
+    node_stack.pop_front();
     pushImm(0);
-    nodeStack.push_front(node);
+    node_stack.push_front(node);
     writeBinaryInst(OpID::LG_EQ);
     return;
   } else {
@@ -124,12 +103,12 @@ void IRGenerator::writeUnaryInst(OpID op) {
 }
 
 void IRGenerator::writeBinaryInst(OpID op) {
-  assert(nodeStack.size() >= 2);
+  assert(node_stack.size() >= 2);
   ostream& os = setting.getOs();
-  Node right = nodeStack.front();
-  nodeStack.pop_front();
-  Node left = nodeStack.front();
-  nodeStack.pop_front();
+  Node right = node_stack.front();
+  node_stack.pop_front();
+  Node left = node_stack.front();
+  node_stack.pop_front();
 
   int new_symbol = registerNewSymbol();
   os << setting.getIndentStr() << "%" << new_symbol << " = ";
@@ -142,18 +121,18 @@ void IRGenerator::writeBinaryInst(OpID op) {
 }
 
 void IRGenerator::writeLogicInst(OpID op) {
-  assert(nodeStack.size() >= 2);
+  assert(node_stack.size() >= 2);
   assert(op == OpID::LG_AND || op == OpID::LG_OR);
 
-  Node right = nodeStack.front();
-  nodeStack.pop_front();
+  Node right = node_stack.front();
+  node_stack.pop_front();
 
   // left -> bool
   pushImm(0);
   writeBinaryInst(OpID::LG_NEQ);
 
   // right -> bool
-  nodeStack.push_front(right);
+  node_stack.push_front(right);
   pushImm(0);
   writeBinaryInst(OpID::LG_NEQ);
 
@@ -162,7 +141,7 @@ void IRGenerator::writeLogicInst(OpID op) {
 }
 
 int IRGenerator::registerNewSymbol() {
-  return variablePool++;
+  return variable_pool++;
 }
 
 void IRGenerator::parseNode(const Node& node) {
@@ -179,4 +158,6 @@ void IRGenerator::parseNode(const Node& node) {
       assert(false);
       break;
   }
+}
+
 }

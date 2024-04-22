@@ -6,10 +6,10 @@
 #include <iostream>
 #include <sstream>
 #include <string>
-#include "util.h"
+#include "ir_util.h"
+#include "output_setting.h"
 
-using namespace std;
-
+namespace ir {
 // 栈内元素类型
 enum NodeTag { symbol, imm, unused };
 
@@ -26,20 +26,6 @@ struct Node {
   Node(Node&& n);
 };
 
-// 输出相关信息
-struct GenSettings {
-  // 输出流
-  ostream* os;
-  // 当前缩进
-  int indent;
-
-  GenSettings& setOs(ostream& o);
-  GenSettings& setIndent(int val);
-  int& getIndent();
-  ostream& getOs();
-  string getIndentStr();
-};
-
 class IRGenerator {
  private:
   IRGenerator();
@@ -49,10 +35,10 @@ class IRGenerator {
 
  public:
   static IRGenerator& getInstance();
-  static int variablePool;
-  string functionName;
-  string returnType;
-  deque<Node> nodeStack;
+  int variable_pool;
+  string function_name;
+  string return_type;
+  deque<Node> node_stack;
   GenSettings setting;
 
   // 生成函数开头
@@ -76,3 +62,5 @@ class IRGenerator {
   int registerNewSymbol();
   void parseNode(const Node& node);
 };
+
+}

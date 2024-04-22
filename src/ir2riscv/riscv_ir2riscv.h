@@ -7,12 +7,14 @@
 #include <queue>
 #include <sstream>
 #include <string>
-#include "build.h"
-#include "info.h"
 #include "koopa.h"
-#include "read.h"
+#include "riscv_build.h"
+#include "riscv_gen.h"
+#include "riscv_read.h"
 
 using namespace std;
+
+namespace riscv {
 
 /* core.cpp */
 // 主功能
@@ -22,3 +24,5 @@ koopa_raw_program_t get_raw_program(string ircode,
                                     koopa_raw_program_builder_t& builder);
 // 释放raw program builder
 void release_builder(koopa_raw_program_builder_t& builder);
+
+}  // namespace riscv

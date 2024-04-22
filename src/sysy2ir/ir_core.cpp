@@ -1,7 +1,9 @@
-#include "sysy2ir.h"
+#include "ir_sysy2ir.h"
 
 extern FILE* yyin;
 extern int yyparse(unique_ptr<BaseAST>& ast);
+
+namespace ir {
 
 string sysy2ir(const char* input,
                const char* output,
@@ -22,7 +24,7 @@ string sysy2ir(const char* input,
   ast->Print(prt, 0);
   ast->Dump();
 
-  if (true) {
+  if (output2stdout) {
     cout << "Structure: \n" << prt.str() << endl;
     cout << "IR code:\n" << dp.str() << endl;
   }
@@ -38,4 +40,6 @@ string sysy2ir(const char* input,
     }
   }
   return dp.str();
+}
+
 }

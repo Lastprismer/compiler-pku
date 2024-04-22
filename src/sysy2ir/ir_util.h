@@ -1,7 +1,8 @@
 #pragma once
 #include <assert.h>
-#include <iostream>
 #include <string>
+
+namespace ir {
 
 enum OpID {
   UNARY_POS,
@@ -25,3 +26,4 @@ enum OpID {
 };
 
 std::string BiOp2koopa(OpID id);
+}  // namespace ir

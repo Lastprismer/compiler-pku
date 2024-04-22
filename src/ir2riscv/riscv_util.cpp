@@ -1,7 +1,9 @@
-#include "util.h"
-#include "ir2riscv.h"
+#include "riscv_util.h"
+#include "riscv_ir2riscv.h"
 
-const char* parse_symbol(const char* symbol_name) {
+namespace riscv {
+
+const char* parseSymbol(const char* symbol_name) {
   return symbol_name + 1;
 }
 
@@ -43,4 +45,6 @@ const char* get_binary_op_string(koopa_raw_binary_op_t opt) {
     case KOOPA_RBO_SAR:
       return "<<(sar)";
   }
+}
+
 }

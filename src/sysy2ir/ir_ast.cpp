@@ -1,5 +1,6 @@
-#include "ast.h"
-#include "util.h"
+#include "ir_ast.h"
+#include "ir_util.h"
+using namespace ir;
 
 #pragma region CompUnitAST
 
@@ -33,7 +34,7 @@ void FuncDefAST::Print(ostream& os, int indent) const {
 void FuncDefAST::Dump() {
   IRGenerator& gen = IRGenerator::getInstance();
   funcType->Dump();
-  gen.functionName = funcName;
+  gen.function_name = funcName;
 
   gen.writeFuncPrologue();
   block->Dump();
@@ -50,7 +51,7 @@ void FuncTypeAST::Print(ostream& os, int indent) const {
 }
 
 void FuncTypeAST::Dump() {
-  IRGenerator::getInstance().returnType = "i32";
+  IRGenerator::getInstance().return_type = "i32";
 }
 
 #pragma endregion

@@ -4,12 +4,12 @@
 #include <iostream>
 #include <memory>
 #include <string>
-#include "ir2riscv/ir2riscv.h"
-#include "sysy2ir/sysy2ir.h"
+#include "ir2riscv/riscv_ir2riscv.h"
+#include "sysy2ir/ir_sysy2ir.h"
 
 void supreme_compile(int argc, const char* argv[]);
 
-enum CompilerMode { koopa, riscv, perf };
+enum CompilerMode { KOOPA, RISCV, PERF };
 
 int main(int argc, const char* argv[]) {
   supreme_compile(argc, argv);
@@ -24,18 +24,18 @@ void supreme_compile(int argc, const char* argv[]) {
   auto output = argv[4];
   CompilerMode mode;
   if (strcmp(argv[1], "-koopa") == 0) {
-    mode = CompilerMode::koopa;
+    mode = CompilerMode::KOOPA;
   } else if (strcmp(argv[1], "-riscv") == 0) {
-    mode = CompilerMode::riscv;
+    mode = CompilerMode::RISCV;
   } else if (strcmp(argv[1], "-perf") == 0) {
-    mode = CompilerMode::perf;
+    mode = CompilerMode::PERF;
   } else {
     assert(false);
   }
 
-  string ir = sysy2ir(input, output, mode == CompilerMode::koopa, false);
-  if (mode == CompilerMode::koopa) {
+  string ir = ir::sysy2ir(input, output, mode == CompilerMode::KOOPA, false);
+  if (mode == CompilerMode::KOOPA) {
     return;
   }
-  ir2riscv(ir, output);
+  riscv::ir2riscv(ir, output);
 }

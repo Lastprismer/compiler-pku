@@ -6,8 +6,8 @@
 #include <iostream>
 #include <memory>
 #include <string>
-#include "gen.h"
-#include "sysy2ir.h"
+#include "ir_gen.h"
+#include "ir_sysy2ir.h"
 
 #define INDENT_LEN 4
 
