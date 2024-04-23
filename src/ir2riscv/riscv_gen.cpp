@@ -97,6 +97,11 @@ void RiscvGenerator::writeInst(OpType op) {
   Node left = node_stack.front();
   node_stack.pop_front();
 
+  if (left.tag == NodeTag::imm && right.tag == NodeTag::imm) {
+    pushImm(magicInst(left, right, op));
+    return;
+  }
+
   Reg rd = genInst(left, right, op);
 
   // 推入结果
@@ -310,11 +315,41 @@ Reg RiscvGenerator::genInst(Node& left, Node& right, OpType op) {
   return rd;
 }
 
-void RiscvGenerator::immZero2Regx0(Node& node) {
-  if (node.tag == NodeTag::imm && node.content.imm == 0) {
-    node.tag = NodeTag::reg;
-    node.content.reg = Reg::x0;
+#pragma region uncanny feat
+int RiscvGenerator::magicInst(Node& left, Node& right, OpType op) {
+  int l = left.content.imm;
+  int r = right.content.imm;
+  switch (op) {
+    case koopa_raw_binary_op::KOOPA_RBO_NOT_EQ:
+      return l != r;
+    case koopa_raw_binary_op::KOOPA_RBO_EQ:
+      return l == r;
+    case koopa_raw_binary_op::KOOPA_RBO_GT:
+      return l > r;
+    case koopa_raw_binary_op::KOOPA_RBO_LT:
+      return l < r;
+    case koopa_raw_binary_op::KOOPA_RBO_GE:
+      return l >= r;
+    case koopa_raw_binary_op::KOOPA_RBO_LE:
+      return l <= r;
+    case koopa_raw_binary_op::KOOPA_RBO_ADD:
+      return l + r;
+    case koopa_raw_binary_op::KOOPA_RBO_SUB:
+      return l - r;
+    case koopa_raw_binary_op::KOOPA_RBO_MUL:
+      return l * r;
+    case koopa_raw_binary_op::KOOPA_RBO_DIV:
+      return l / r;
+    case koopa_raw_binary_op::KOOPA_RBO_MOD:
+      return l % r;
+    case koopa_raw_binary_op::KOOPA_RBO_AND:
+      return l && r;
+    case koopa_raw_binary_op::KOOPA_RBO_OR:
+      return l | r;
+    default:
+      assert(false);
   }
 }
+#pragma endregion
 
 }  // namespace riscv

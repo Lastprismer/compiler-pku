@@ -64,7 +64,7 @@ class RiscvGenerator {
   void releaseReg(Reg reg);
   // 生成指令，内部，返回rd寄存器
   Reg genInst(Node& left, Node& right, OpType op);
-  // 将为0的立即数变为寄存器x0
-  void immZero2Regx0(Node& node);
+  // 原地优化
+  int magicInst(Node& left, Node& right, OpType op);
 };
 };  // namespace riscv
