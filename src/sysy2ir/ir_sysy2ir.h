@@ -12,8 +12,5 @@ using namespace std;
 
 namespace ir {
 /* core.cpp */
-string sysy2ir(const char* input,
-               const char* output,
-               bool output2file,
-               bool output2stdout);
-}
+string sysy2ir(const char* input, const char* output, bool output2file);
+}  // namespace ir

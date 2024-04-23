@@ -47,4 +47,10 @@ const char* get_binary_op_string(koopa_raw_binary_op_t opt) {
   }
 }
 
+bool immInBound(int imm) {
+  return imm >= -2048 && imm <= 2047;
 }
+Reg zeroReg() {
+  return Reg::x0;
+}
+}  // namespace riscv

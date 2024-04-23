@@ -67,5 +67,4 @@ class RiscvGenerator {
   // 将为0的立即数变为寄存器x0
   void immZero2Regx0(Node& node);
 };
-
-};
+};  // namespace riscv

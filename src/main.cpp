@@ -33,7 +33,7 @@ void supreme_compile(int argc, const char* argv[]) {
     assert(false);
   }
 
-  string ir = ir::sysy2ir(input, output, mode == CompilerMode::KOOPA, false);
+  string ir = ir::sysy2ir(input, output, mode == CompilerMode::KOOPA);
   if (mode == CompilerMode::KOOPA) {
     return;
   }

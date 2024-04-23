@@ -5,10 +5,7 @@ extern int yyparse(unique_ptr<BaseAST>& ast);
 
 namespace ir {
 
-string sysy2ir(const char* input,
-               const char* output,
-               bool output2file,
-               bool output2stdout = true) {
+string sysy2ir(const char* input, const char* output, bool output2file) {
   yyin = fopen(input, "r");
   assert(yyin);
 
@@ -24,12 +21,10 @@ string sysy2ir(const char* input,
   ast->Print(prt, 0);
   ast->Dump();
 
-  if (output2stdout) {
+  if (false) {
     cout << "Structure: \n" << prt.str() << endl;
     cout << "IR code:\n" << dp.str() << endl;
-  }
-
-  if (output2file) {
+  } else {
     // 输出到文件
     ofstream outfile(output);
     if (outfile.is_open()) {
@@ -42,4 +37,4 @@ string sysy2ir(const char* input,
   return dp.str();
 }
 
-}
+}  // namespace ir

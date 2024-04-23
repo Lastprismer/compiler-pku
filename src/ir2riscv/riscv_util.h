@@ -12,6 +12,7 @@
 namespace riscv {
 
 typedef enum riscv_registers_enum_t {
+  NONE,
   t0,
   t1,
   t2,
@@ -34,5 +35,8 @@ typedef enum riscv_registers_enum_t {
 const char* parseSymbol(const char* symbol_name);
 // 获取koopa_raw_binary_op对应的符号的字符串
 const char* get_binary_op_string(koopa_raw_binary_op_t opt);
+// [-2048, 2047]
+bool immInBound(int imm);
 
+Reg zeroReg();
 }

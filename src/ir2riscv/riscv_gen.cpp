@@ -77,15 +77,14 @@ void RiscvGenerator::pushReg(Reg reg) {
 void RiscvGenerator::pushImm(int imm) {
   if (!setting.start_writing)
     return;
-  if (imm == 0) {
-    // 保证所有立即数0都被替换为寄存器x0
-    pushReg(Reg::x0);
-  } else {
-    Node bi;
-    bi.tag = NodeTag::imm;
-    bi.content.imm = imm;
-    node_stack.push_front(bi);
-  }
+  // if (imm == 0) {
+  // 保证所有立即数0都被替换为寄存器x0
+  // 不保证
+  // pushReg(Reg::x0);
+  Node bi;
+  bi.tag = NodeTag::imm;
+  bi.content.imm = imm;
+  node_stack.push_front(bi);
 }
 
 void RiscvGenerator::writeInst(OpType op) {
@@ -112,55 +111,200 @@ Reg RiscvGenerator::getAvailableReg() {
 }
 
 void RiscvGenerator::releaseReg(Reg reg) {
-  available_regs.insert(reg);
+  if (reg != Reg::NONE)
+    available_regs.insert(reg);
 }
 
 Reg RiscvGenerator::genInst(Node& left, Node& right, OpType op) {
   ostream& os = setting.getOs();
-  Reg rd = getAvailableReg();
-  switch (op) {
-    case koopa_raw_binary_op::KOOPA_RBO_EQ:
-      // TODO: 当前只有左端会是0
-      assert(left.tag == NodeTag::reg && left.content.reg == Reg::x0);
+  Reg rs = Reg::NONE;
+  Reg rd = Reg::NONE;
 
-      if (left.tag == NodeTag::reg && left.content.reg == Reg::x0) {
-        if (right.tag == NodeTag::reg) {
-          // 使用seqz
-          seqz(os, rd, right.content.reg);
+  if (op == koopa_raw_binary_op::KOOPA_RBO_ADD) {
+#pragma region add
+    if (left.tag == NodeTag::imm) {
+      if (right.tag == NodeTag::imm) {
+        // imm + imm
+        rd = getAvailableReg();
+        if (immInBound(right.content.imm)) {
+          // addi right to left
+          li(os, rd, left.content.imm);
+          addi(os, rd, rd, right.content.imm);
+          return rd;
+        } else if (immInBound(left.content.imm)) {
+          // addi left to right
+          li(os, rd, right.content.imm);
+          addi(os, rd, rd, left.content.imm);
+          return rd;
         } else {
-          // 分配rs，用完就释放
-          // TODO: 之后优化为常数
-          Reg rs = getAvailableReg();
+          // add down
+          rs = getAvailableReg();
+          li(os, rd, left.content.imm);
           li(os, rs, right.content.imm);
-          seqz(os, rd, rs);
-          releaseReg(rs);
+        }
+      } else if (right.tag == NodeTag::reg) {
+        // imm + reg
+        rd = right.content.reg;
+        if (immInBound(left.content.imm)) {
+          addi(os, rd, rd, left.content.imm);
+          return rd;
+        } else {
+          // add down
+          rs = getAvailableReg();
+          li(os, rs, left.content.imm);
         }
       }
+    } else if (left.tag == NodeTag::reg) {
+      if (right.tag == NodeTag::imm) {
+        // reg + imm
+        rd = left.content.reg;
+        if (immInBound(right.content.imm)) {
+          addi(os, rd, rd, right.content.imm);
+          return rd;
+        } else {
+          // add down
+          rs = getAvailableReg();
+          li(os, rs, right.content.imm);
+        }
+        return rd;
+      } else if (right.tag == NodeTag::reg) {
+        // reg + reg
+        rd = left.content.reg;
+        rs = right.content.reg;
+      }
+      add(os, rd, rd, rs);
+      releaseReg(rs);
+      return rd;
+    }
+#pragma endregion
 
+  } else if (op == koopa_raw_binary_op::KOOPA_RBO_SUB) {
+#pragma region sub
+    if (left.tag == NodeTag::imm) {
+      // imm - x
+      rd = getAvailableReg();
+      li(os, rd, left.content.imm);
+    } else
+      rd = left.content.reg;
+    // reg - x
+    if (right.tag == NodeTag::imm) {
+      // reg - imm
+      if (immInBound(-right.content.imm)) {
+        addi(os, rd, rd, -right.content.imm);
+        return rd;
+      } else {
+        rs = getAvailableReg();
+        li(os, rs, right.content.imm);
+        sub(os, rd, rd, rs);
+        releaseReg(rs);
+        return rd;
+      }
+    } else {
+      // reg - reg
+      rs = right.content.reg;
+      sub(os, rd, rd, rs);
+      releaseReg(rs);
+      return rd;
+    }
+#pragma endregion
+  }
+
+  if (left.tag == NodeTag::imm) {
+    rd = getAvailableReg();
+    li(os, rd, left.content.imm);
+  } else {
+    rd = left.content.reg;
+  }
+  if (right.tag == NodeTag::imm) {
+    rs = getAvailableReg();
+    li(os, rs, right.content.imm);
+  } else {
+    rs = right.content.reg;
+  }
+
+  switch (op) {
+    case koopa_raw_binary_op::KOOPA_RBO_NOT_EQ:
+#pragma region neq
+      neq(os, rd, rd, rs);
+      releaseReg(rs);
       break;
+#pragma endregion
+
+    case koopa_raw_binary_op::KOOPA_RBO_EQ:
+#pragma region eq
+      eq(os, rd, rd, rs);
+      releaseReg(rs);
+      break;
+#pragma endregion
+
+    case koopa_raw_binary_op::KOOPA_RBO_GT:
+#pragma region sgt
+      sgt(os, rd, rd, rs);
+      releaseReg(rs);
+      break;
+#pragma endregion
+
+    case koopa_raw_binary_op::KOOPA_RBO_LT:
+#pragma region slt
+      slt(os, rd, rd, rs);
+      releaseReg(rs);
+      break;
+#pragma endregion
+
+    case koopa_raw_binary_op::KOOPA_RBO_GE:
+#pragma region sge
+      sge(os, rd, rd, rs);
+      releaseReg(rs);
+      break;
+#pragma endregion
+
+    case koopa_raw_binary_op::KOOPA_RBO_LE:
+#pragma region sle
+      sle(os, rd, rd, rs);
+      releaseReg(rs);
+      break;
+#pragma endregion
+
+    case koopa_raw_binary_op::KOOPA_RBO_ADD:
     case koopa_raw_binary_op::KOOPA_RBO_SUB:
-      if (left.tag == NodeTag::imm) {
-        // left分配，使用完就释放
-        Reg lreg = getAvailableReg();
-        if (right.tag == NodeTag::imm) {
-          // 使用addi rd, left, -right
-          addi(os, rd, lreg, -right.content.imm);
-        } else {
-          sub(os, rd, lreg, right.content.reg);
-        }
-        releaseReg(lreg);
-
-      } else if (left.tag == NodeTag::reg) {
-        if (right.tag == NodeTag::imm) {
-          // 使用addi rd, left, -right
-          addi(os, rd, left.content.reg, -right.content.imm);
-        } else {
-          sub(os, rd, left.content.reg, right.content.reg);
-        }
-      }
+      assert(false);
+    case koopa_raw_binary_op::KOOPA_RBO_MUL:
+#pragma region mul
+      mul(os, rd, rd, rs);
+      releaseReg(rs);
       break;
+#pragma endregion
+
+    case koopa_raw_binary_op::KOOPA_RBO_DIV:
+#pragma region div
+      div(os, rd, rd, rs);
+      releaseReg(rs);
+      break;
+#pragma endregion
+
+    case koopa_raw_binary_op::KOOPA_RBO_MOD:
+#pragma region mod
+      rem(os, rd, rd, rs);
+      releaseReg(rs);
+      break;
+#pragma endregion
+
+    case koopa_raw_binary_op::KOOPA_RBO_AND:
+#pragma region and
+      andr(os, rd, rd, rs);
+      releaseReg(rs);
+      break;
+#pragma endregion
+
+    case koopa_raw_binary_op::KOOPA_RBO_OR:
+#pragma region or
+      orr(os, rd, rd, rs);
+      releaseReg(rs);
+      break;
+#pragma endregion
 
     default:
+      cerr << op;
       assert(false);
   }
   return rd;
@@ -173,4 +317,4 @@ void RiscvGenerator::immZero2Regx0(Node& node) {
   }
 }
 
-}
+}  // namespace riscv

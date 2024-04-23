@@ -5,76 +5,78 @@ void ret(ostream& os) {
   os << "  ret" << endl;
 }
 
-void li(ostream& os, const string& dest, int imm) {
-  os << "  li " << dest << ", " << imm << endl;
-}
-
 void li(ostream& os, const Reg& dest, int imm) {
-  li(os, regstr(dest), imm);
-}
-
-void mv(ostream& os, const string& rd, const string& rs) {
-  os << "  mv " << rd << ", " << rs << endl;
+  os << "  li " << regstr(dest) << ", " << imm << endl;
 }
 
 void mv(ostream& os, const Reg& rd, const Reg& rs) {
-  mv(os, regstr(rd), regstr(rs));
-}
-
-void add(ostream& os, const string& rd, const string& rs1, const string& rs2) {
-  os << "  add " << rd << ", " << rs1 << ", " << rs2 << endl;
+  os << "  mv " << regstr(rd) << ", " << regstr(rs) << endl;
 }
 
 void add(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2) {
-  add(os, regstr(rd), regstr(rs1), regstr(rs2));
-}
-
-void addi(ostream& os, const string& rd, const string& rs1, int imm) {
-  os << "  addi " << rd << ", " << rs1 << ", " << imm << endl;
+  os << "  add " << regstr(rd) << ", " << regstr(rs1) << ", " << regstr(rs2)
+     << endl;
 }
 
 void addi(ostream& os, const Reg& rd, const Reg& rs1, int imm) {
-  addi(os, regstr(rd), regstr(rs1), imm);
-}
-
-void sub(ostream& os, const string& rd, const string& rs1, const string& rs2) {
-  os << "  sub " << rd << ", " << rs1 << ", " << rs2 << endl;
+  os << "  addi " << regstr(rd) << ", " << regstr(rs1) << ", " << imm << endl;
 }
 
 void sub(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2) {
-  sub(os, regstr(rd), regstr(rs1), regstr(rs2));
-}
-
-void mul(ostream& os, const string& rd, const string& rs1, const string& rs2) {
-  os << "  mul " << rd << ", " << rs1 << ", " << rs2 << endl;
+  os << "  sub " << regstr(rd) << ", " << regstr(rs1) << ", " << regstr(rs2)
+     << endl;
 }
 
 void mul(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2) {
-  mul(os, regstr(rd), regstr(rs1), regstr(rs2));
-}
-
-void div(ostream& os, const string& rd, const string& rs1, const string& rs2) {
-  os << "  div " << rd << ", " << rs1 << ", " << rs2 << endl;
+  os << "  mul " << regstr(rd) << ", " << regstr(rs1) << ", " << regstr(rs2)
+     << endl;
 }
 
 void div(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2) {
-  div(os, regstr(rd), regstr(rs1), regstr(rs2));
-}
-
-void rem(ostream& os, const string& rd, const string& rs1, const string& rs2) {
-  os << "  rem " << rd << ", " << rs1 << ", " << rs2 << endl;
+  os << "  div " << regstr(rd) << ", " << regstr(rs1) << ", " << regstr(rs2)
+     << endl;
 }
 
 void rem(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2) {
-  rem(os, regstr(rd), regstr(rs1), regstr(rs2));
-}
-
-void seqz(ostream& os, const string& rd, const string& rs) {
-  os << "  seqz " << rd << ", " << rs << endl;
+  os << "  rem " << regstr(rd) << ", " << regstr(rs1) << ", " << regstr(rs2)
+     << endl;
 }
 
 void seqz(ostream& os, const Reg& rd, const Reg& rs) {
-  seqz(os, regstr(rd), regstr(rs));
+  os << "  seqz " << regstr(rd) << ", " << regstr(rs) << endl;
+}
+
+void snez(ostream& os, const Reg& rd, const Reg& rs) {
+  os << "  snez " << regstr(rd) << ", " << regstr(rs) << endl;
+}
+
+void slt(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2) {
+  os << "  slt " << regstr(rd) << ", " << regstr(rs1) << ", " << regstr(rs2)
+     << endl;
+}
+
+void sgt(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2) {
+  os << "  sgt " << regstr(rd) << ", " << regstr(rs1) << ", " << regstr(rs2)
+     << endl;
+}
+
+void xorr(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2) {
+  os << "  xor " << regstr(rd) << ", " << regstr(rs1) << ", " << regstr(rs2)
+     << endl;
+}
+
+void xori(ostream& os, const Reg& rd, const Reg& rs1, int imm) {
+  os << "  xori " << regstr(rd) << ", " << regstr(rs1) << ", " << imm << endl;
+}
+
+void andr(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2) {
+  os << "  and " << regstr(rd) << ", " << regstr(rs1) << ", " << regstr(rs2)
+     << endl;
+}
+
+void orr(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2) {
+  os << "  or " << regstr(rd) << ", " << regstr(rs1) << ", " << regstr(rs2)
+     << endl;
 }
 
 string regstr(Reg reg) {
@@ -111,7 +113,30 @@ string regstr(Reg reg) {
       return string("a7");
     case x0:
       return string("x0");
+    case NONE:
+    default:
+      assert(false);
   }
+}
+
+void sle(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2) {
+  sgt(os, rd, rs1, rs2);
+  xori(os, rd, rd, 1);
+}
+
+void sge(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2) {
+  slt(os, rd, rs1, rs2);
+  xori(os, rd, rd, 1);
+}
+
+void eq(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2) {
+  xorr(os, rd, rs1, rs2);
+  seqz(os, rd, rd);
+}
+
+void neq(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2) {
+  xorr(os, rd, rs1, rs2);
+  snez(os, rd, rd);
 }
 
 }  // namespace riscv
