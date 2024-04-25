@@ -18,14 +18,100 @@ void CompUnitAST::Dump() {
 
 #pragma endregion
 
+#pragma region DeclAST
+void DeclAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "DeclAST {" << endl;
+  decl->Print(os, indent + 1);
+  make_indent(os, indent);
+  os << " }," << endl;
+}
+
+// TODO
+void DeclAST::Dump() {}
+
+#pragma endregion
+
+#pragma region ConstDeclAST
+
+void ConstDeclAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "ConstDeclAST {" << endl;
+  btype->Print(os, indent + 1);
+  for (auto it = const_defs.begin(); it != const_defs.end(); it++) {
+    (*it)->Print(os, indent + 1);
+  }
+  make_indent(os, indent);
+  os << " }," << endl;
+}
+
+// TODO
+void ConstDeclAST::Dump() {}
+
+#pragma endregion
+
+#pragma region ConstDeclListUnit
+
+void ConstDeclListUnit::Print(ostream& os, int indent) const {
+  cerr << "[SHOULD OUTPUT THIS]" << endl;
+}
+
+void ConstDeclListUnit::Dump() {
+  cerr << "[SHOULD OUTPUT THIS]" << endl;
+}
+
+#pragma endregion
+
+#pragma region BTypeAST
+
+void BTypeAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "BTypeAST: int" << endl;
+}
+
+// TODO
+void BTypeAST::Dump() {}
+
+#pragma endregion
+
+#pragma region ConstDefAST
+
+void ConstDefAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "ConstDefAST: { var_name: " << var_name << endl;
+  const_init_val->Print(os, indent + 1);
+  make_indent(os, indent);
+  os << " }," << endl;
+}
+
+// TODO
+void ConstDefAST::Dump() {}
+
+#pragma endregion
+
+#pragma region ConstInitValAST
+
+void ConstInitValAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "ConstInitValAST: {" << endl;
+  const_exp->Print(os, indent + 1);
+  make_indent(os, indent);
+  os << " }," << endl;
+}
+
+// TODO
+void ConstInitValAST::Dump() {}
+
+#pragma endregion
+
 #pragma region FuncDefAST
 
 void FuncDefAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "FuncDefAST {" << endl;
-  funcType->Print(os, indent + 1);
+  func_type->Print(os, indent + 1);
   make_indent(os, indent + 1);
-  os << "IDENT: \"" << funcName << "\"," << endl;
+  os << "func name: \"" << func_name << "\"," << endl;
   block->Print(os, indent + 1);
   make_indent(os, indent);
   os << " }," << endl;
@@ -33,8 +119,8 @@ void FuncDefAST::Print(ostream& os, int indent) const {
 
 void FuncDefAST::Dump() {
   IRGenerator& gen = IRGenerator::getInstance();
-  funcType->Dump();
-  gen.function_name = funcName;
+  func_type->Dump();
+  gen.function_name = func_name;
 
   gen.writeFuncPrologue();
   block->Dump();
@@ -61,7 +147,9 @@ void FuncTypeAST::Dump() {
 void BlockAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "BlockAST {" << endl;
-  stmt->Print(os, indent + 1);
+  for (auto it = block_items.begin(); it != block_items.end(); it++) {
+    (*it)->Print(os, indent + 1);
+  }
   make_indent(os, indent);
   os << " }," << endl;
 }
@@ -69,17 +157,64 @@ void BlockAST::Print(ostream& os, int indent) const {
 void BlockAST::Dump() {
   IRGenerator& gen = IRGenerator::getInstance();
   gen.writeBlockPrologue();
-  stmt->Dump();
+  for (auto it = block_items.begin(); it != block_items.end(); it++) {
+    (*it)->Dump();
+  }
+}
+
+#pragma endregion
+
+#pragma region BlockListUnit
+void BlockListUnit::Print(ostream& os, int indent) const {
+  cerr << "[SHOULD OUTPUT THIS]" << endl;
+}
+
+void BlockListUnit::Dump() {
+  cerr << "[SHOULD OUTPUT THIS]" << endl;
+}
+
+#pragma endregion
+
+#pragma region BlockItem
+void BlockItemAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "BlockItemAST {" << endl;
+  make_indent(os, indent + 1);
+  os << "type: " << type() << endl;
+  content->Print(os, indent + 1);
+  make_indent(os, indent);
+  os << " }," << endl;
+}
+
+void BlockItemAST::Dump() {
+  content->Dump();
+}
+
+string BlockItemAST::type() const {
+  if (bt == blocktype_t::decl) {
+    return string("decl");
+  }
+  return string("stmt");
 }
 
 #pragma endregion
 
 #pragma region StmtAST
-
 void StmtAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "StmtAST {" << endl;
-  exp->Print(os, indent + 1);
+  make_indent(os, indent + 1);
+  os << "type: " << type() << endl;
+  if (st == decl) {
+    lval->Print(os, indent + 1);
+    make_indent(os, indent + 1);
+    os << "=" << endl;
+    exp->Print(os, indent + 1);
+  } else {
+    make_indent(os, indent + 1);
+    os << "return" << endl;
+    exp->Print(os, indent + 1);
+  }
   make_indent(os, indent);
   os << " }," << endl;
 }
@@ -88,6 +223,12 @@ void StmtAST::Dump() {
   exp->Dump();
 }
 
+string StmtAST::type() const {
+  if (st == stmttype_t::decl) {
+    return string("decl");
+  }
+  return string("return");
+}
 #pragma endregion
 
 #pragma region ExpAST
@@ -95,9 +236,7 @@ void StmtAST::Dump() {
 void ExpAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "ExpAST {" << endl;
-
   loexp->Print(os, indent + 1);
-
   make_indent(os, indent);
   os << " }," << endl;
 }
@@ -108,6 +247,17 @@ void ExpAST::Dump() {
 
 #pragma endregion
 
+#pragma region LValAST
+void LValAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "LValAST { var name: \"" << var_name << "\" }," << endl;
+}
+
+// TODO
+void LValAST::Dump() {}
+
+#pragma endregion
+
 #pragma region PrimaryExpAST
 
 void PrimaryExpAST::Print(ostream& os, int indent) const {
@@ -115,36 +265,23 @@ void PrimaryExpAST::Print(ostream& os, int indent) const {
   os << "PrimaryAST {" << endl;
   make_indent(os, indent + 1);
   os << "type: " << type() << endl;
-
-  if (pex == pex_t::Brackets) {
-    exp->Print(os, indent + 1);
-  } else {
-    number->Print(os, indent + 1);
-  }
-
+  content->Print(os, indent + 1);
   make_indent(os, indent);
   os << " }," << endl;
 }
 
 void PrimaryExpAST::Dump() {
-  switch (pex) {
-    case Brackets:
-      exp->Dump();
-      break;
-    case Number:
-      number->Dump();
-      break;
-    default:
-      assert(false);
-  }
+  content->Dump();
 }
 
 const char* PrimaryExpAST::type() const {
-  switch (pex) {
+  switch (pt) {
     case Brackets:
       return "(Exp)";
     case Number:
       return "Number";
+    case LVal:
+      return "LVal";
     default:
       assert(false);
   }
@@ -156,11 +293,7 @@ const char* PrimaryExpAST::type() const {
 
 void NumberAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
-  os << "NumberAST { " << endl;
-  make_indent(os, indent + 1);
-  os << "int_const: " << int_const << endl;
-  make_indent(os, indent);
-  os << " }," << endl;
+  os << "NumberAST { int_const: " << int_const << " }," << endl;
 }
 
 void NumberAST::Dump() {
@@ -266,7 +399,7 @@ void MulExpAST::Print(ostream& os, int indent) const {
 
   if (mex == mex_t::MulOPUnary) {
     mexp->Print(os, indent + 1);
-    make_indent(os, indent);
+    make_indent(os, indent + 1);
     os << "op: " << op_name() << endl;
     uexp->Print(os, indent + 1);
   } else {
@@ -335,7 +468,7 @@ void AddExpAST::Print(ostream& os, int indent) const {
 
   if (aex == aex_t::AddOPMul) {
     aexp->Print(os, indent + 1);
-    make_indent(os, indent);
+    make_indent(os, indent + 1);
     os << "op: " << op_name() << endl;
     mexp->Print(os, indent + 1);
   } else {
@@ -397,7 +530,7 @@ void RelExpAST::Print(ostream& os, int indent) const {
   os << "type: " << type() << endl;
   if (rex == rex_t::RelOPAdd) {
     rexp->Print(os, indent + 1);
-    make_indent(os, indent);
+    make_indent(os, indent + 1);
     os << "op: " << op_name() << endl;
     aexp->Print(os, indent + 1);
   } else {
@@ -472,7 +605,7 @@ void EqExpAST::Print(ostream& os, int indent) const {
 
   if (eex == eex_t::EqOPRel) {
     eexp->Print(os, indent + 1);
-    make_indent(os, indent);
+    make_indent(os, indent + 1);
     os << op_name() << endl;
     rexp->Print(os, indent + 1);
   } else {
@@ -525,18 +658,18 @@ string EqExpAST::type() const {
 
 #pragma endregion
 
-#pragma region LAndExpAst
+#pragma region LAndExpAST
 
-void LAndExpAst::Print(ostream& os, int indent) const {
+void LAndExpAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
-  os << "LAndExpAst {" << endl;
+  os << "LAndExpAST {" << endl;
   make_indent(os, indent + 1);
 
   os << "type: " << type() << endl;
 
   if (laex == laex_t::LAOPEq) {
     laexp->Print(os, indent + 1);
-    make_indent(os, indent);
+    make_indent(os, indent + 1);
     os << "&&" << endl;
     eexp->Print(os, indent + 1);
   } else {
@@ -547,7 +680,7 @@ void LAndExpAst::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void LAndExpAst::Dump() {
+void LAndExpAST::Dump() {
   if (laex == laex_t::LAOPEq) {
     laexp->Dump();
     eexp->Dump();
@@ -557,7 +690,7 @@ void LAndExpAst::Dump() {
   }
 }
 
-string LAndExpAst::type() const {
+string LAndExpAST::type() const {
   switch (laex) {
     case laex_t::EqExp:
       return string("EqEXP");
@@ -570,18 +703,18 @@ string LAndExpAst::type() const {
 
 #pragma endregion
 
-#pragma region LOrExpAst
+#pragma region LOrExpAST
 
-void LOrExpAst::Print(ostream& os, int indent) const {
+void LOrExpAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
-  os << "LOrExpAst {" << endl;
+  os << "LOrExpAST {" << endl;
   make_indent(os, indent + 1);
 
   os << "type: " << type() << endl;
 
   if (loex == loex_t::LOOPLA) {
     loexp->Print(os, indent + 1);
-    make_indent(os, indent);
+    make_indent(os, indent + 1);
     os << "||" << endl;
     laexp->Print(os, indent + 1);
   } else {
@@ -592,7 +725,7 @@ void LOrExpAst::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-void LOrExpAst::Dump() {
+void LOrExpAST::Dump() {
   if (loex == loex_t::LOOPLA) {
     loexp->Dump();
     laexp->Dump();
@@ -602,7 +735,7 @@ void LOrExpAst::Dump() {
   }
 }
 
-string LOrExpAst::type() const {
+string LOrExpAST::type() const {
   switch (loex) {
     case loex_t::LAndExp:
       return string("LAndExp");
@@ -612,6 +745,21 @@ string LOrExpAst::type() const {
       return string("LOrExp || LAndExp");
   }
 }
+
+#pragma endregion
+
+#pragma region ConstExpAST
+
+void ConstExpAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "ConstExpAST: {" << endl;
+  exp->Print(os, indent + 1);
+  make_indent(os, indent);
+  os << " }," << endl;
+}
+
+// TODO
+void ConstExpAST::Dump() {}
 
 #pragma endregion
 

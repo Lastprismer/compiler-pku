@@ -15,25 +15,35 @@ using namespace std;
 
 /*
 
-CompUnit  ::= FuncDef;
+CompUnit      ::= FuncDef;
 
-FuncDef   ::= FuncType IDENT "(" ")" Block;
-FuncType  ::= "int";
+Decl          ::= ConstDecl;
+ConstDecl     ::= "const" BType ConstDef {"," ConstDef} ";";
+BType         ::= "int";
+ConstDef      ::= IDENT "=" ConstInitVal;
+ConstInitVal  ::= ConstExp;
 
-Block     ::= "{" Stmt "}";
-Stmt        ::= "return" Exp ";";
+FuncDef       ::= FuncType IDENT "(" ")" Block;
+FuncType      ::= "int";
 
-Exp         ::= LOrExp;
-PrimaryExp  ::= "(" Exp ")" | Number;
-Number      ::= INT_CONST;
-UnaryExp    ::= PrimaryExp | UnaryOp UnaryExp;
-UnaryOp     ::= "+" | "-" | "!";
-MulExp      ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;
-AddExp      ::= MulExp | AddExp ("+" | "-") MulExp;
-RelExp      ::= AddExp | RelExp ("<" | ">" | "<=" | ">=") AddExp;
-EqExp       ::= RelExp | EqExp ("==" | "!=") RelExp;
-LAndExp     ::= EqExp | LAndExp "&&" EqExp;
-LOrExp      ::= LAndExp | LOrExp "||" LAndExp;
+Block         ::= "{" {BlockItem} "}";
+BlockItem     ::= Decl | Stmt;
+Stmt          ::= LVal "=" Exp ";"
+                | "return" Exp ";";
+
+Exp           ::= LOrExp;
+LVal          ::= IDENT;
+PrimaryExp    ::= "(" Exp ")" | LVal | Number;
+Number        ::= INT_CONST;
+UnaryExp      ::= PrimaryExp | UnaryOp UnaryExp;
+UnaryOp       ::= "+" | "-" | "!";
+MulExp        ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;
+AddExp        ::= MulExp | AddExp ("+" | "-") MulExp;
+RelExp        ::= AddExp | RelExp ("<" | ">" | "<=" | ">=") AddExp;
+EqExp         ::= RelExp | EqExp ("==" | "!=") RelExp;
+LAndExp       ::= EqExp | LAndExp "&&" EqExp;
+LOrExp        ::= LAndExp | LOrExp "||" LAndExp;
+ConstExp      ::= Exp;
 
 */
 
@@ -53,11 +63,72 @@ class CompUnitAST : public BaseAST {
   void Dump() override;
 };
 
+// Decl          ::= ConstDecl;
+class DeclAST : public BaseAST {
+ public:
+  enum de_t { cnst, var };
+  de_t de;
+  unique_ptr<BaseAST> decl;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+
+// ConstDecl     ::= "const" BType ConstDef {"," ConstDef} ";";
+// |
+// ConstDecl     ::= "const" BType ConstDef ConstDeclList ";";
+// ConstDeclList  ::= "," ConstDef ConstDeclList | epsilon
+class ConstDefAST;
+class ConstDeclAST : public BaseAST {
+ public:
+  unique_ptr<BaseAST> btype;
+  vector<unique_ptr<ConstDefAST>> const_defs;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+
+// 不进树
+class ConstDeclListUnit : public BaseAST {
+ public:
+  // forgive me
+  vector<ConstDefAST*> const_defs;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+
+// BType         ::= "int";
+class BTypeAST : public BaseAST {
+ public:
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+
+// ConstDef      ::= IDENT "=" ConstInitVal;
+class ConstDefAST : public BaseAST {
+ public:
+  string var_name;
+  unique_ptr<BaseAST> const_init_val;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+
+// ConstInitVal  ::= ConstExp;
+class ConstInitValAST : public BaseAST {
+ public:
+  unique_ptr<BaseAST> const_exp;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+
 // FuncDef   ::= FuncType IDENT "(" ")" Block;
 class FuncDefAST : public BaseAST {
  public:
-  unique_ptr<BaseAST> funcType;
-  string funcName;
+  unique_ptr<BaseAST> func_type;
+  string func_name;
   unique_ptr<BaseAST> block;
 
   void Print(ostream& os, int indent) const override;
@@ -71,22 +142,54 @@ class FuncTypeAST : public BaseAST {
   void Dump() override;
 };
 
-// Block     ::= "{" Stmt "}";
+// Block         ::= "{" {BlockItem} "}";
+// |
+// Block     ::= "{" BlockItem BlockList "}";
+// BlockList  ::= BlockItem BlockList | epsilon
+class BlockItemAST;
 class BlockAST : public BaseAST {
  public:
-  unique_ptr<BaseAST> stmt;
+  vector<unique_ptr<BlockItemAST>> block_items;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
 
-// Stmt        ::= "return" Exp ";";
+class BlockListUnit : public BaseAST {
+ public:
+  // plz forgive me
+  vector<BlockItemAST*> block_items;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+
+// BlockItem     ::= Decl | Stmt;
+class BlockItemAST : public BaseAST {
+ public:
+  enum blocktype_t { decl, stmt };
+  blocktype_t bt;
+  unique_ptr<BaseAST> content;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+  string type() const;
+};
+
+/*
+Stmt          ::= LVal "=" Exp ";"
+                | "return" Exp ";";
+*/
 class StmtAST : public BaseAST {
  public:
+  enum stmttype_t { decl, retn };
+  stmttype_t st;
+  unique_ptr<BaseAST> lval;
   unique_ptr<BaseAST> exp;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
+  string type() const;
 };
 
 // Exp         ::= LOrExp;
@@ -98,13 +201,21 @@ class ExpAST : public BaseAST {
   void Dump() override;
 };
 
-// PrimaryExp  ::= "(" Exp ")" | Number;
+// LVal          ::= IDENT;
+class LValAST : public BaseAST {
+ public:
+  string var_name;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+
+// PrimaryExp    ::= "(" Exp ")" | LVal | Number;
 class PrimaryExpAST : public BaseAST {
  public:
-  enum pex_t { Brackets, Number };
-  pex_t pex;
-  unique_ptr<BaseAST> exp;
-  unique_ptr<BaseAST> number;
+  enum primary_exp_type_t { Brackets, LVal, Number };
+  primary_exp_type_t pt;
+  unique_ptr<BaseAST> content;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
@@ -224,7 +335,7 @@ class EqExpAST : public BaseAST {
 };
 
 // LAndExp     ::= EqExp | LAndExp "&&" EqExp;
-class LAndExpAst : public BaseAST {
+class LAndExpAST : public BaseAST {
  public:
   enum laex_t { EqExp, LAOPEq };
   laex_t laex;
@@ -239,7 +350,7 @@ class LAndExpAst : public BaseAST {
 };
 
 // LOrExp      ::= LAndExp | LOrExp "||" LAndExp;
-class LOrExpAst : public BaseAST {
+class LOrExpAST : public BaseAST {
  public:
   enum loex_t { LAndExp, LOOPLA };
   loex_t loex;
@@ -251,6 +362,15 @@ class LOrExpAst : public BaseAST {
 
  private:
   string type() const;
+};
+
+// ConstExp      ::= Exp;
+class ConstExpAST : public BaseAST {
+ public:
+  unique_ptr<BaseAST> exp;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
 };
 
 void make_indent(ostream& os, int indent);

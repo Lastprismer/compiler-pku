@@ -18,10 +18,10 @@ string sysy2ir(const char* input, const char* output, bool output2file) {
 
   IRGenerator::getInstance().setting.setIndent(0).setOs(dp);
 
-  ast->Print(prt, 0);
+  ast->Print(cout, 0);
   ast->Dump();
 
-  if (false) {
+  if (true) {
     cout << "Structure: \n" << prt.str() << endl;
     cout << "IR code:\n" << dp.str() << endl;
   } else {

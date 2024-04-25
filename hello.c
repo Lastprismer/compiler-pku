@@ -1,3 +1,4 @@
 int main() {
-  return +-+!(!-10000);
+  const int a = 1, b = 2, c = 3;
+  return a;
 }

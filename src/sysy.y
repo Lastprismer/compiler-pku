@@ -39,12 +39,15 @@ using namespace std;
 // 注意 IDENT 和 INT_CONST 会返回 token 的值, 分别对应 str_val 和 int_val
 %token INT RETURN
 %token OPLE OPLT OPGE OPGT OPEQ OPNE OPAND OPOR
+%token CONST
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
 %type <ast_val> FuncDef FuncType Block Stmt
 %type <ast_val> Exp PrimaryExp Number UnaryExp UnaryOp MulExp AddExp RelExp EqExp LAndExp LOrExp
+// lv4
+%type <ast_val> Decl ConstDecl BType ConstDef ConstDeclList ConstInitVal LVal BlockList BlockItem ConstExp
 
 %%
 
@@ -53,6 +56,7 @@ using namespace std;
 // 而 parser 一旦解析完 CompUnit, 就说明所有的 token 都被解析了, 即解析结束了
 // 此时我们应该把 FuncDef 返回的结果收集起来, 作为 AST 传给调用 parser 的函数
 // $1 指代规则里第一个符号的返回值, 也就是 FuncDef 的返回值
+// CompUnit      ::= FuncDef;
 CompUnit
   : FuncDef {
     auto comp_unit = make_unique<CompUnitAST>();
@@ -60,6 +64,71 @@ CompUnit
     ast = move(comp_unit);
   }
   ;
+
+// Decl          ::= ConstDecl;
+Decl
+  : ConstDecl {
+    auto ast = new DeclAST();
+    ast->de = DeclAST::de_t::cnst;
+    ast->decl = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  ;
+
+// ConstDecl     ::= "const" BType ConstDef {"," ConstDef} ";";
+// |
+// ConstDecl     ::= "const" BType ConstDef ConstDeclList ";";
+// ConstDeclList  ::= "," ConstDef ConstDeclList | epsilon
+
+ConstDecl
+  : CONST BType ConstDef ConstDeclList ';' {
+    auto ast = new ConstDeclAST();
+    ast->btype = unique_ptr<BaseAST>($2);
+    // 插入开头def
+    ast->const_defs.push_back(unique_ptr<ConstDefAST>((ConstDefAST*)$3));
+    auto list = unique_ptr<ConstDeclListUnit>((ConstDeclListUnit*)$4);
+    // 插入剩余def
+    for (auto it = list->const_defs.end() - 1; it >= list->const_defs.begin(); it--) {
+      ast->const_defs.push_back(unique_ptr<ConstDefAST>(*it));
+    }
+    $$ = ast;
+  }
+  ;
+
+ConstDeclList
+  : ',' ConstDef ConstDeclList {
+    ((ConstDeclListUnit*)$3)->const_defs.push_back((ConstDefAST*)$2);
+    $$ = $3;
+  }
+  | {
+    auto ast = new ConstDeclListUnit();
+    $$ = ast;
+  }
+  ;
+
+// BType         ::= "int";
+BType
+  : INT {
+    auto ast = new BTypeAST();
+    $$ = ast;
+  }
+
+// ConstDef      ::= IDENT "=" ConstInitVal;
+ConstDef
+  : IDENT '=' ConstInitVal {
+    auto ast = new ConstDefAST();
+    ast->var_name = *unique_ptr<string>($1);
+    ast->const_init_val = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+
+// ConstInitVal  ::= ConstExp;
+ConstInitVal
+  : ConstExp {
+    auto ast = new ConstInitValAST();
+    ast->const_exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
 
 // FuncDef ::= FuncType IDENT '(' ')' Block;
 // 我们这里可以直接写 '(' 和 ')', 因为之前在 lexer 里已经处理了单个字符的情况
@@ -71,17 +140,19 @@ CompUnit
 // 否则会发生内存泄漏, 而 unique_ptr 这种智能指针可以自动帮我们 delete
 // 虽然此处你看不出用 unique_ptr 和手动 delete 的区别, 但当我们定义了 AST 之后
 // 这种写法会省下很多内存管理的负担
+// FuncDef   ::= FuncType IDENT "(" ")" Block;
 FuncDef
   : FuncType IDENT '(' ')' Block {
     auto ast = new FuncDefAST();
-    ast->funcType = unique_ptr<BaseAST>($1);
-    ast->funcName = *unique_ptr<string>($2);
+    ast->func_type = unique_ptr<BaseAST>($1);
+    ast->func_name = *unique_ptr<string>($2);
     ast->block = unique_ptr<BaseAST>($5);
     $$ = ast;
   }
   ;
 
 // 同上, 不再解释
+// FuncType  ::= "int";
 FuncType
   : INT {
     auto ast = new FuncTypeAST();
@@ -89,22 +160,71 @@ FuncType
   }
   ;
 
+// Block         ::= "{" {BlockItem} "}";
+// |
+// Block     ::= "{" BlockItem BlockList "}";
+// BlockList  ::= BlockItem BlockList | epsilon
 Block
-  : '{' Stmt '}' {
+  : '{' BlockItem BlockList '}' {
     auto ast = new BlockAST();
-    ast->stmt = unique_ptr<BaseAST>($2);
+    // 插入开头item
+    ast->block_items.push_back(unique_ptr<BlockItemAST>((BlockItemAST*)$2));
+    auto list = unique_ptr<BlockListUnit>((BlockListUnit*)$3);
+    // 插入剩余item
+    for (auto it = list->block_items.end() - 1; it >= list->block_items.begin(); it--) {
+      ast->block_items.push_back(unique_ptr<BlockItemAST>(*it));
+    }
     $$ = ast;
   }
   ;
 
+BlockList
+  : BlockItem BlockList {
+    ((BlockListUnit*)$2)->block_items.push_back((BlockItemAST*)$1);
+    $$ = $2;
+  }
+  | {
+    auto ast = new BlockListUnit();
+    $$ = ast;
+  };
+
+// BlockItem     ::= Decl | Stmt;
+BlockItem
+  : Decl {
+    auto ast = new BlockItemAST();
+    ast->bt = BlockItemAST::blocktype_t::decl;
+    ast->content = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | Stmt {
+    auto ast = new BlockItemAST();
+    ast->bt = BlockItemAST::blocktype_t::stmt;
+    ast->content = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+
+
+/*
+Stmt          ::= LVal "=" Exp ";"
+                | "return" Exp ";";
+*/
 Stmt
   : RETURN Exp ';' {
     auto ast = new StmtAST();
+    ast->st = StmtAST::stmttype_t::retn;
     ast->exp = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  | LVal '=' Exp ';' {
+    auto ast = new StmtAST();
+    ast->st = StmtAST::stmttype_t::decl;
+    ast->lval = unique_ptr<BaseAST>($1);
+    ast->exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   ;
 
+// Exp         ::= LOrExp;
 Exp
   : LOrExp {
     auto ast = new ExpAST();
@@ -113,23 +233,39 @@ Exp
   }
   ;
 
-PrimaryExp
-  : '(' Exp ')' {
-    auto ast = new PrimaryExpAST();
-    ast->pex = PrimaryExpAST::pex_t::Brackets;
-    ast->exp = unique_ptr<BaseAST>($2);
-    ast->number = nullptr;
-    $$ = ast;
-  }
-  | Number {
-    auto ast = new PrimaryExpAST();
-    ast->pex = PrimaryExpAST::pex_t::Number;
-    ast->exp = nullptr;
-    ast->number = unique_ptr<BaseAST>($1);
+// LVal          ::= IDENT;
+LVal
+  : IDENT {
+    auto ast = new LValAST();
+    ast->var_name = *unique_ptr<string>($1);
     $$ = ast;
   }
   ;
 
+// PrimaryExp    ::= "(" Exp ")" | LVal | Number;
+PrimaryExp
+  : '(' Exp ')' {
+    auto ast = new PrimaryExpAST();
+    ast->pt = PrimaryExpAST::primary_exp_type_t::Brackets;
+    ast->content = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  | LVal {
+    auto ast = new PrimaryExpAST();
+    ast->pt = PrimaryExpAST::primary_exp_type_t::LVal;
+    ast->content = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+
+  | Number {
+    auto ast = new PrimaryExpAST();
+    ast->pt = PrimaryExpAST::primary_exp_type_t::Number;
+    ast->content = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  ;
+
+// Number      ::= INT_CONST;
 Number
   : INT_CONST {
     auto ast = new NumberAST();
@@ -138,6 +274,7 @@ Number
   }
   ;
 
+// UnaryExp    ::= PrimaryExp | UnaryOp UnaryExp;
 UnaryExp
   : PrimaryExp {
     auto ast = new UnaryExpAST();
@@ -157,6 +294,7 @@ UnaryExp
   }
   ;
 
+// UnaryOp     ::= "+" | "-" | "!";
 UnaryOp
   : '+' {
     auto ast = new UnaryOPAST();
@@ -175,6 +313,7 @@ UnaryOp
   }
   ;
 
+// MulExp      ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;
 MulExp
   : UnaryExp {
     auto ast = new MulExpAST();
@@ -208,6 +347,7 @@ MulExp
   }
   ;
 
+// AddExp      ::= MulExp | AddExp ("+" | "-") MulExp;
 AddExp
   : MulExp {
     auto ast = new AddExpAST();
@@ -233,6 +373,7 @@ AddExp
   }
   ;
 
+// RelExp      ::= AddExp | RelExp ("<" | ">" | "<=" | ">=") AddExp;
 RelExp
   : AddExp {
     auto ast = new RelExpAST();
@@ -274,6 +415,7 @@ RelExp
   }
   ;
 
+// EqExp       ::= RelExp | EqExp ("==" | "!=") RelExp;
 EqExp
   : RelExp {
     auto ast = new EqExpAST();
@@ -299,37 +441,48 @@ EqExp
   }
   ;
 
+// LAndExp     ::= EqExp | LAndExp "&&" EqExp;
 LAndExp
   : EqExp {
-    auto ast = new LAndExpAst();
-    ast->laex = LAndExpAst::laex_t::EqExp;
+    auto ast = new LAndExpAST();
+    ast->laex = LAndExpAST::laex_t::EqExp;
     ast->eexp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | LAndExp OPAND EqExp {
-    auto ast = new LAndExpAst();
-    ast->laex = LAndExpAst::laex_t::LAOPEq;
+    auto ast = new LAndExpAST();
+    ast->laex = LAndExpAST::laex_t::LAOPEq;
     ast->laexp = unique_ptr<BaseAST>($1);
     ast->eexp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   ;
 
+// LOrExp      ::= LAndExp | LOrExp "||" LAndExp;
 LOrExp
   : LAndExp {
-    auto ast = new LOrExpAst();
-    ast->loex = LOrExpAst::loex_t::LAndExp;
+    auto ast = new LOrExpAST();
+    ast->loex = LOrExpAST::loex_t::LAndExp;
     ast->laexp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | LOrExp OPOR LAndExp {
-    auto ast = new LOrExpAst();
-    ast->loex = LOrExpAst::loex_t::LOOPLA;
+    auto ast = new LOrExpAST();
+    ast->loex = LOrExpAST::loex_t::LOOPLA;
     ast->loexp = unique_ptr<BaseAST>($1);
     ast->laexp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   ;
+
+// ConstExp      ::= Exp;
+ConstExp
+  : Exp {
+    auto ast = new ConstExpAST();
+    ast->exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+
 %%
 
 // 定义错误处理函数, 其中第二个参数是错误信息
