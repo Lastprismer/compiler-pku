@@ -176,14 +176,14 @@ VarDef
   : IDENT {
     auto ast = new VarDefAST();
     ast->var_name = *unique_ptr<string>($1);
-    ast->decl_with_val = false;
+    ast->init_with_val = false;
     $$ = ast;
   }
   | IDENT '=' InitVal {
     auto ast = new VarDefAST();
     ast->var_name = *unique_ptr<string>($1);
     ast->init_val = unique_ptr<BaseAST>($3);
-    ast->decl_with_val = true;
+    ast->init_with_val = true;
     $$ = ast;
   }
   ;

@@ -22,6 +22,9 @@ ConstDecl     ::= "const" BType ConstDef {"," ConstDef} ";";
 BType         ::= "int";
 ConstDef      ::= IDENT "=" ConstInitVal;
 ConstInitVal  ::= ConstExp;
+VarDecl       ::= BType VarDef {"," VarDef} ";";
+VarDef        ::= IDENT | IDENT "=" InitVal;
+InitVal       ::= Exp;
 
 FuncDef       ::= FuncType IDENT "(" ")" Block;
 FuncType      ::= "int";
@@ -44,6 +47,7 @@ EqExp         ::= RelExp | EqExp ("==" | "!=") RelExp;
 LAndExp       ::= EqExp | LAndExp "&&" EqExp;
 LOrExp        ::= LAndExp | LOrExp "||" LAndExp;
 ConstExp      ::= Exp;
+
 
 */
 
@@ -219,7 +223,6 @@ class BlockItemAST : public BaseAST {
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
-  string type() const;
 };
 
 /*

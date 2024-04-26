@@ -54,7 +54,7 @@ void ConstDeclAST::Print(ostream& os, int indent) const {
 
 void ConstDeclAST::Dump() {
   DeclaimProcessor& processor =
-      IRGenerator::getInstance().symbol_table.getProcessor();
+      IRGenerator::getInstance().symbol_table.getDProc();
   processor.Enable();
   processor.SetSymbolType(SymbolType::CONST);
   btype->Dump();
@@ -86,7 +86,7 @@ void BTypeAST::Print(ostream& os, int indent) const {
 }
 
 void BTypeAST::Dump() {
-  IRGenerator::getInstance().symbol_table.processer.SetVarType(VarType::INT);
+  IRGenerator::getInstance().symbol_table.dproc.SetVarType(VarType::INT);
 }
 
 #pragma endregion
@@ -109,8 +109,8 @@ void ConstDefAST::Dump() {
   const Node node = gen.getFrontNode();
   assert(node.tag == NodeTag::IMM);
   // 取值加入符号表
-  DeclaimProcessor& pcs = gen.symbol_table.getProcessor();
-  SymbolTableEntry entry = pcs.GenerateConstEntry(var_name, node.content.imm);
+  DeclaimProcessor& pcs = gen.symbol_table.getDProc();
+  SymbolTableEntry entry = pcs.GenerateConstEntry(var_name, node.imm);
   gen.symbol_table.insertEntry(entry);
 }
 
@@ -146,7 +146,7 @@ void VarDeclAST::Print(ostream& os, int indent) const {
 
 void VarDeclAST::Dump() {
   DeclaimProcessor& processor =
-      IRGenerator::getInstance().symbol_table.getProcessor();
+      IRGenerator::getInstance().symbol_table.getDProc();
   processor.Enable();
   processor.SetSymbolType(SymbolType::VAR);
   btype->Dump();
@@ -186,19 +186,18 @@ void VarDefAST::Print(ostream& os, int indent) const {
 
 void VarDefAST::Dump() {
   IRGenerator& gen = IRGenerator::getInstance();
-  DeclaimProcessor& pcs = gen.symbol_table.getProcessor();
+  DeclaimProcessor& pcs = gen.symbol_table.getDProc();
+
+  SymbolTableEntry entry = pcs.GenerateVarEntry(var_name);
+  gen.writeAllocInst(entry);
+  gen.symbol_table.insertEntry(entry);
+  // 如果有初始化
   if (init_with_val) {
     // 类似常数的定义
-    // 此时栈顶元素应为表达式的值，弹出并检查
-    assert(gen.node_stack.size() >= 1);
-    const Node node = gen.getFrontNode();
-    assert(node.tag == NodeTag::IMM);
-    // 取值加入符号表
-    SymbolTableEntry entry = pcs.GenerateVarEntry(var_name, node.content.imm);
-    gen.symbol_table.insertEntry(entry);
-  } else {
-    SymbolTableEntry entry = pcs.GenerateVarEntry(var_name);
-    gen.symbol_table.insertEntry(entry);
+    init_val->Dump();
+    // 赋值，但栈顶元素不用手动弹出，在write里
+    SymbolTableEntry s_entry = gen.symbol_table.getEntry(entry.var_name);
+    gen.writeStoreInst(s_entry);
   }
 }
 
@@ -296,7 +295,7 @@ void BlockItemAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "BlockItemAST {" << endl;
   make_indent(os, indent + 1);
-  os << "type: " << type() << endl;
+  os << "type: " << (bt == blocktype_t::decl ? "decl" : "stmt") << endl;
   content->Print(os, indent + 1);
   make_indent(os, indent);
   os << " }," << endl;
@@ -304,13 +303,6 @@ void BlockItemAST::Print(ostream& os, int indent) const {
 
 void BlockItemAST::Dump() {
   content->Dump();
-}
-
-string BlockItemAST::type() const {
-  if (bt == blocktype_t::decl) {
-    return string("decl");
-  }
-  return string("stmt");
 }
 
 #pragma endregion
@@ -334,10 +326,16 @@ void StmtAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-// TODO
 void StmtAST::Dump() {
   if (st == stmttype_t::CALC_LVAL) {
-    cerr << "[INVALID CURRENTLY]" << endl;
+    IRGenerator& gen = IRGenerator::getInstance();
+    AssignmentProcessor& aproc = gen.symbol_table.getAProc();
+    aproc.Enable();
+    lval->Dump();
+    aproc.Disable();
+    exp->Dump();
+    // 此时栈顶为需要的值，赋值
+    gen.writeStoreInst(gen.symbol_table.getEntry(aproc.GetCurrentVar()));
   } else {
     exp->Dump();
   }
@@ -382,11 +380,20 @@ void LValAST::Dump() {
   } else {
     if (entry.var_type == VarType::INT) {
       // var int
-      // TODO
+      // 判断是左值还是右值
+      if (gen.symbol_table.aproc.IsEnabled()) {
+        // 为左值，设置aproc处理当前符号
+        AssignmentProcessor& aproc = gen.symbol_table.getAProc();
+        aproc.SetCurrentVar(var_name);
+      } else {
+        // 为右值，将其加载并入栈
+        gen.writeLoadInst(entry);
+      }
+
     } else {
-      // var  arr
+      // var arr
+      assert(false);
     }
-    assert(false);
   }
 }
 

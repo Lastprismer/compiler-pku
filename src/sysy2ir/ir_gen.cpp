@@ -4,13 +4,23 @@ namespace ir {
 
 Node::Node() {}
 
-Node::Node(int i) : tag(NodeTag::IMM) {
-  content.imm = i;
+Node::Node(int i) : tag(NodeTag::IMM), imm(i) {}
+
+Node::Node(const Node& n) : tag(n.tag) {
+  if (tag == NodeTag::IMM) {
+    imm = n.imm;
+  } else if (tag == NodeTag::SYMBOL) {
+    symbol_name = n.symbol_name;
+  }
 }
 
-Node::Node(const Node& n) : tag(n.tag), content(n.content) {}
-
-Node::Node(Node&& n) : tag(n.tag), content(n.content) {}
+Node::Node(Node&& n) : tag(n.tag) {
+  if (tag == NodeTag::IMM) {
+    imm = n.imm;
+  } else if (tag == NodeTag::SYMBOL) {
+    symbol_name = n.symbol_name;
+  }
+}
 
 IRGenerator::IRGenerator() {
   setting.setOs(cout).setIndent(0);
@@ -37,9 +47,9 @@ void IRGenerator::writeFuncEpilogue() {
   os << setting.getIndentStr() << "ret ";
   Node node = node_stack.front();
   if (node.tag == NodeTag::IMM) {
-    os << node.content.imm;
+    os << node.imm;
   } else if (node.tag == NodeTag::SYMBOL) {
-    os << "%" << node.content.symbol_id;
+    os << node.symbol_name;
   } else {
     assert(false);
   }
@@ -62,16 +72,16 @@ void IRGenerator::pushSymbol(int syb) {
   Node comp;
   comp.tag = NodeTag::SYMBOL;
   if (syb == -1) {
-    comp.content.symbol_id = registerNewSymbol();
+    comp.symbol_name = getSymbolName(registerNewSymbol());
   }
-  comp.content.symbol_id = syb;
+  comp.symbol_name = getSymbolName(syb);
   node_stack.push_front(comp);
 }
 
 void IRGenerator::pushImm(int int_const) {
   Node comp;
   comp.tag = NodeTag::IMM;
-  comp.content.imm = int_const;
+  comp.imm = int_const;
   node_stack.push_front(comp);
 }
 
@@ -127,7 +137,7 @@ void IRGenerator::writeBinaryInst(OpID op) {
   }
 
   int new_symbol = registerNewSymbol();
-  os << setting.getIndentStr() << "%" << new_symbol << " = ";
+  os << setting.getIndentStr() << getSymbolName(new_symbol) << " = ";
   os << BiOp2koopa(op) << ' ';
   parseNode(left);
   os << ", ";
@@ -156,18 +166,51 @@ void IRGenerator::writeLogicInst(OpID op) {
   writeBinaryInst(op);
 }
 
+void IRGenerator::writeAllocInst(const SymbolTableEntry& entry) {
+  ostream& os = setting.getOs();
+  os << setting.getIndentStr() << entry.GetAllocInst() << endl;
+}
+
+void IRGenerator::writeLoadInst(const SymbolTableEntry& entry) {
+  ostream& os = setting.getOs();
+  // 申请新符号
+  int new_symbol = registerNewSymbol();
+  os << setting.getIndentStr() << entry.GetLoadInst(getSymbolName(new_symbol))
+     << endl;
+  // 推入节点
+  pushSymbol(new_symbol);
+}
+
+void IRGenerator::writeStoreInst(const SymbolTableEntry& entry) {
+  ostream& os = setting.getOs();
+  // 弹出栈顶节点
+  const Node& node = getFrontNode();
+
+  os << setting.getIndentStr();
+  if (node.tag == NodeTag::IMM) {
+    // 常量赋值
+    os << entry.GetStoreInst(node.imm) << endl;
+  } else if (node.tag == NodeTag::SYMBOL) {
+    os << entry.GetStoreInst(node.symbol_name) << endl;
+  }
+}
+
 int IRGenerator::registerNewSymbol() {
   return variable_pool++;
+}
+
+string IRGenerator::getSymbolName(const int& symbol) const {
+  return string("%") + to_string(symbol);
 }
 
 void IRGenerator::parseNode(const Node& node) {
   ostream& os = setting.getOs();
   switch (node.tag) {
     case NodeTag::IMM:
-      os << node.content.imm;
+      os << node.imm;
       break;
     case NodeTag::SYMBOL:
-      os << "%" << node.content.symbol_id;
+      os << node.symbol_name;
       break;
     default:
       cerr << (int)node.tag;
@@ -177,8 +220,8 @@ void IRGenerator::parseNode(const Node& node) {
 }
 
 int IRGenerator::calcConstExpr(const Node& left, const Node& right, OpID op) {
-  int l = left.content.imm;
-  int r = right.content.imm;
+  int l = left.imm;
+  int r = right.imm;
   switch (op) {
     case BI_ADD:
       return l + r;
