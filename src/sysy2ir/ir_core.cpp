@@ -14,15 +14,15 @@ string sysy2ir(const char* input, const char* output, bool output2file) {
   auto ret = yyparse(ast);
   assert(!ret);
 
-  stringstream prt, dp;
+  stringstream out, dp;
 
   IRGenerator::getInstance().setting.setIndent(0).setOs(dp);
 
   ast->Print(cout, 0);
   ast->Dump();
 
-  if (true) {
-    cout << "Structure: \n" << prt.str() << endl;
+  if (false) {
+    cout << "Structure: \n" << out.str() << endl;
     cout << "IR code:\n" << dp.str() << endl;
   } else {
     // 输出到文件

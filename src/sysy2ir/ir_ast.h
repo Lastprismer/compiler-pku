@@ -17,7 +17,7 @@ using namespace std;
 
 CompUnit      ::= FuncDef;
 
-Decl          ::= ConstDecl;
+Decl          ::= ConstDecl | VarDecl;
 ConstDecl     ::= "const" BType ConstDef {"," ConstDef} ";";
 BType         ::= "int";
 ConstDef      ::= IDENT "=" ConstInitVal;
@@ -63,10 +63,10 @@ class CompUnitAST : public BaseAST {
   void Dump() override;
 };
 
-// Decl          ::= ConstDecl;
+// Decl          ::= ConstDecl | VarDecl;
 class DeclAST : public BaseAST {
  public:
-  enum de_t { cnst, var };
+  enum de_t { CONST, VAR };
   de_t de;
   unique_ptr<BaseAST> decl;
 
@@ -101,6 +101,7 @@ class ConstDeclListUnit : public BaseAST {
 // BType         ::= "int";
 class BTypeAST : public BaseAST {
  public:
+  string btype;
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
@@ -119,6 +120,51 @@ class ConstDefAST : public BaseAST {
 class ConstInitValAST : public BaseAST {
  public:
   unique_ptr<BaseAST> const_exp;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+
+// VarDecl       ::= BType VarDef {"," VarDef} ";";
+// |
+// VarDecl     ::= BType VarDef VarDeclList ";";
+// VarDeclList  ::= "," VarDef VarDeclList | epsilon
+class VarDefAST;
+class VarDeclAST : public BaseAST {
+ public:
+  unique_ptr<BaseAST> btype;
+  vector<unique_ptr<VarDefAST>> var_defs;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+
+class VarDeclListUnit : public BaseAST {
+ public:
+  // hello, world
+  vector<VarDefAST*> var_defs;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+
+// VarDef        ::= IDENT | IDENT "=" InitVal;
+class VarDefAST : public BaseAST {
+ public:
+  bool init_with_val;
+  string var_name;
+  unique_ptr<BaseAST> init_val;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+
+ public:
+};
+
+// InitVal       ::= Exp;
+class InitValAST : public BaseAST {
+ public:
+  unique_ptr<BaseAST> exp;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
@@ -182,14 +228,13 @@ Stmt          ::= LVal "=" Exp ";"
 */
 class StmtAST : public BaseAST {
  public:
-  enum stmttype_t { decl, retn };
+  enum stmttype_t { CALC_LVAL, RETURN };
   stmttype_t st;
   unique_ptr<BaseAST> lval;
   unique_ptr<BaseAST> exp;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
-  string type() const;
 };
 
 // Exp         ::= LOrExp;

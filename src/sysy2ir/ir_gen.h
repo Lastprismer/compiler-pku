@@ -6,12 +6,13 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include "ir_symtable.h"
 #include "ir_util.h"
 #include "output_setting.h"
 
 namespace ir {
 // 栈内元素类型
-enum NodeTag { symbol, imm, unused };
+enum class NodeTag { UNUSED, SYMBOL, IMM, VAR };
 
 // 栈内元素
 struct Node {
@@ -40,6 +41,7 @@ class IRGenerator {
   string return_type;
   deque<Node> node_stack;
   GenSettings setting;
+  SymbolTable symbol_table;
 
   // 生成函数开头
   void writeFuncPrologue();
@@ -51,6 +53,10 @@ class IRGenerator {
   void pushSymbol(int symbol);
   // 推入立即数
   void pushImm(int int_const);
+  // 获取栈顶节点
+  const Node& checkFrontNode() const;
+  // 弹出栈顶节点
+  Node getFrontNode();
   // 输入单目运算符，输出指令
   void writeUnaryInst(OpID op);
   // 输入双目运算符，输出指令
@@ -61,6 +67,8 @@ class IRGenerator {
  private:
   int registerNewSymbol();
   void parseNode(const Node& node);
+  // 计算常数表达式
+  int calcConstExpr(const Node& left, const Node& right, OpID op);
 };
 
-}
+}  // namespace ir

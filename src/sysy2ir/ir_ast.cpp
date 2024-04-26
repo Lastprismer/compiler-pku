@@ -22,13 +22,20 @@ void CompUnitAST::Dump() {
 void DeclAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "DeclAST {" << endl;
+  make_indent(os, indent + 1);
+  if (de == de_t::CONST) {
+    os << "type: const" << endl;
+  } else {
+    os << "type: var" << endl;
+  }
   decl->Print(os, indent + 1);
   make_indent(os, indent);
   os << " }," << endl;
 }
 
-// TODO
-void DeclAST::Dump() {}
+void DeclAST::Dump() {
+  decl->Dump();
+}
 
 #pragma endregion
 
@@ -45,8 +52,17 @@ void ConstDeclAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-// TODO
-void ConstDeclAST::Dump() {}
+void ConstDeclAST::Dump() {
+  DeclaimProcessor& processor =
+      IRGenerator::getInstance().symbol_table.getProcessor();
+  processor.Enable();
+  processor.SetSymbolType(SymbolType::CONST);
+  btype->Dump();
+  for (auto it = const_defs.begin(); it != const_defs.end(); it++) {
+    (*it)->Dump();
+  }
+  processor.Disable();
+}
 
 #pragma endregion
 
@@ -69,8 +85,9 @@ void BTypeAST::Print(ostream& os, int indent) const {
   os << "BTypeAST: int" << endl;
 }
 
-// TODO
-void BTypeAST::Dump() {}
+void BTypeAST::Dump() {
+  IRGenerator::getInstance().symbol_table.processer.SetVarType(VarType::INT);
+}
 
 #pragma endregion
 
@@ -84,8 +101,18 @@ void ConstDefAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-// TODO
-void ConstDefAST::Dump() {}
+void ConstDefAST::Dump() {
+  IRGenerator& gen = IRGenerator::getInstance();
+  const_init_val->Dump();
+  // 此时栈顶元素应为表达式的值，弹出并检查
+  assert(gen.node_stack.size() >= 1);
+  const Node node = gen.getFrontNode();
+  assert(node.tag == NodeTag::IMM);
+  // 取值加入符号表
+  DeclaimProcessor& pcs = gen.symbol_table.getProcessor();
+  SymbolTableEntry entry = pcs.GenerateConstEntry(var_name, node.content.imm);
+  gen.symbol_table.insertEntry(entry);
+}
 
 #pragma endregion
 
@@ -99,8 +126,97 @@ void ConstInitValAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-// TODO
-void ConstInitValAST::Dump() {}
+void ConstInitValAST::Dump() {
+  const_exp->Dump();
+}
+
+#pragma endregion
+
+#pragma region VarDeclAST
+void VarDeclAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "VarDeclAST {" << endl;
+  btype->Print(os, indent + 1);
+  for (auto it = var_defs.begin(); it != var_defs.end(); it++) {
+    (*it)->Print(os, indent + 1);
+  }
+  make_indent(os, indent);
+  os << " }," << endl;
+}
+
+void VarDeclAST::Dump() {
+  DeclaimProcessor& processor =
+      IRGenerator::getInstance().symbol_table.getProcessor();
+  processor.Enable();
+  processor.SetSymbolType(SymbolType::VAR);
+  btype->Dump();
+  for (auto it = var_defs.begin(); it != var_defs.end(); it++) {
+    (*it)->Dump();
+  }
+  processor.Disable();
+}
+
+#pragma endregion
+
+#pragma region VarDeclListUnit
+
+void VarDeclListUnit::Print(ostream& os, int indent) const {
+  cerr << "[SHOULD OUTPUT THIS]" << endl;
+}
+
+void VarDeclListUnit::Dump() {
+  cerr << "[SHOULD OUTPUT THIS]" << endl;
+}
+
+#pragma endregion
+
+#pragma region VarDefAST
+
+void VarDefAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "VarDefAST: { var_name: " << var_name << endl;
+  make_indent(os, indent + 1);
+  os << "declaim with value: " << (init_with_val ? "true" : "false") << endl;
+  if (init_with_val) {
+    init_val->Print(os, indent + 1);
+  }
+  make_indent(os, indent);
+  os << " }," << endl;
+}
+
+void VarDefAST::Dump() {
+  IRGenerator& gen = IRGenerator::getInstance();
+  DeclaimProcessor& pcs = gen.symbol_table.getProcessor();
+  if (init_with_val) {
+    // 类似常数的定义
+    // 此时栈顶元素应为表达式的值，弹出并检查
+    assert(gen.node_stack.size() >= 1);
+    const Node node = gen.getFrontNode();
+    assert(node.tag == NodeTag::IMM);
+    // 取值加入符号表
+    SymbolTableEntry entry = pcs.GenerateVarEntry(var_name, node.content.imm);
+    gen.symbol_table.insertEntry(entry);
+  } else {
+    SymbolTableEntry entry = pcs.GenerateVarEntry(var_name);
+    gen.symbol_table.insertEntry(entry);
+  }
+}
+
+#pragma endregion
+
+#pragma region InitValAST
+
+void InitValAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "InitValAST: {" << endl;
+  exp->Print(os, indent + 1);
+  make_indent(os, indent);
+  os << " }," << endl;
+}
+
+void InitValAST::Dump() {
+  exp->Dump();
+}
 
 #pragma endregion
 
@@ -204,31 +320,29 @@ void StmtAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "StmtAST {" << endl;
   make_indent(os, indent + 1);
-  os << "type: " << type() << endl;
-  if (st == decl) {
+  os << "type: " << (st == stmttype_t::CALC_LVAL ? "calculate lval" : "return")
+     << endl;
+  if (st == CALC_LVAL) {
     lval->Print(os, indent + 1);
     make_indent(os, indent + 1);
     os << "=" << endl;
     exp->Print(os, indent + 1);
   } else {
-    make_indent(os, indent + 1);
-    os << "return" << endl;
     exp->Print(os, indent + 1);
   }
   make_indent(os, indent);
   os << " }," << endl;
 }
 
+// TODO
 void StmtAST::Dump() {
-  exp->Dump();
+  if (st == stmttype_t::CALC_LVAL) {
+    cerr << "[INVALID CURRENTLY]" << endl;
+  } else {
+    exp->Dump();
+  }
 }
 
-string StmtAST::type() const {
-  if (st == stmttype_t::decl) {
-    return string("decl");
-  }
-  return string("return");
-}
 #pragma endregion
 
 #pragma region ExpAST
@@ -253,8 +367,28 @@ void LValAST::Print(ostream& os, int indent) const {
   os << "LValAST { var name: \"" << var_name << "\" }," << endl;
 }
 
-// TODO
-void LValAST::Dump() {}
+void LValAST::Dump() {
+  IRGenerator& gen = IRGenerator::getInstance();
+  // 判断变量类型
+  SymbolTableEntry& entry = gen.symbol_table.getEntry(var_name);
+  if (entry.symbol_type == SymbolType::CONST) {
+    if (entry.var_type == VarType::INT) {
+      // const int
+      gen.pushImm(entry.value);
+    } else {
+      // const arr
+      assert(false);
+    }
+  } else {
+    if (entry.var_type == VarType::INT) {
+      // var int
+      // TODO
+    } else {
+      // var  arr
+    }
+    assert(false);
+  }
+}
 
 #pragma endregion
 
@@ -758,8 +892,9 @@ void ConstExpAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
-// TODO
-void ConstExpAST::Dump() {}
+void ConstExpAST::Dump() {
+  exp->Dump();
+}
 
 #pragma endregion
 

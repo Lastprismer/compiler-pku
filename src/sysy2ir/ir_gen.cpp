@@ -4,7 +4,7 @@ namespace ir {
 
 Node::Node() {}
 
-Node::Node(int i) : tag(NodeTag::imm) {
+Node::Node(int i) : tag(NodeTag::IMM) {
   content.imm = i;
 }
 
@@ -19,6 +19,7 @@ IRGenerator::IRGenerator() {
   function_name = "";
   return_type = "";
   node_stack = deque<Node>();
+  symbol_table = SymbolTable();
 }
 
 IRGenerator& IRGenerator::getInstance() {
@@ -33,12 +34,11 @@ void IRGenerator::writeFuncPrologue() {
 
 void IRGenerator::writeFuncEpilogue() {
   ostream& os = setting.getOs();
-  assert(node_stack.size() == 1);
   os << setting.getIndentStr() << "ret ";
   Node node = node_stack.front();
-  if (node.tag == imm) {
+  if (node.tag == NodeTag::IMM) {
     os << node.content.imm;
-  } else if (node.tag == symbol) {
+  } else if (node.tag == NodeTag::SYMBOL) {
     os << "%" << node.content.symbol_id;
   } else {
     assert(false);
@@ -60,7 +60,7 @@ void IRGenerator::writeBlockPrologue() {
 
 void IRGenerator::pushSymbol(int syb) {
   Node comp;
-  comp.tag = symbol;
+  comp.tag = NodeTag::SYMBOL;
   if (syb == -1) {
     comp.content.symbol_id = registerNewSymbol();
   }
@@ -70,9 +70,19 @@ void IRGenerator::pushSymbol(int syb) {
 
 void IRGenerator::pushImm(int int_const) {
   Node comp;
-  comp.tag = imm;
+  comp.tag = NodeTag::IMM;
   comp.content.imm = int_const;
   node_stack.push_front(comp);
+}
+
+const Node& IRGenerator::checkFrontNode() const {
+  return node_stack.front();
+}
+
+Node IRGenerator::getFrontNode() {
+  Node node = node_stack.front();
+  node_stack.pop_front();
+  return node;
 }
 
 void IRGenerator::writeUnaryInst(OpID op) {
@@ -109,6 +119,12 @@ void IRGenerator::writeBinaryInst(OpID op) {
   node_stack.pop_front();
   Node left = node_stack.front();
   node_stack.pop_front();
+
+  // const expr
+  if (right.tag == NodeTag::IMM && left.tag == NodeTag::IMM) {
+    pushImm(calcConstExpr(left, right, op));
+    return;
+  }
 
   int new_symbol = registerNewSymbol();
   os << setting.getIndentStr() << "%" << new_symbol << " = ";
@@ -147,17 +163,52 @@ int IRGenerator::registerNewSymbol() {
 void IRGenerator::parseNode(const Node& node) {
   ostream& os = setting.getOs();
   switch (node.tag) {
-    case NodeTag::imm:
+    case NodeTag::IMM:
       os << node.content.imm;
       break;
-    case NodeTag::symbol:
+    case NodeTag::SYMBOL:
       os << "%" << node.content.symbol_id;
       break;
     default:
-      os << node.tag;
+      cerr << (int)node.tag;
       assert(false);
       break;
   }
 }
 
+int IRGenerator::calcConstExpr(const Node& left, const Node& right, OpID op) {
+  int l = left.content.imm;
+  int r = right.content.imm;
+  switch (op) {
+    case BI_ADD:
+      return l + r;
+    case BI_SUB:
+      return l - r;
+    case BI_MUL:
+      return l * r;
+    case BI_DIV:
+      return l / r;
+    case BI_MOD:
+      return l % r;
+    case LG_GT:
+      return l > r;
+    case LG_GE:
+      return l >= r;
+    case LG_LT:
+      return l < r;
+    case LG_LE:
+      return l <= r;
+    case LG_EQ:
+      return l == r;
+    case LG_NEQ:
+      return l != r;
+    case LG_AND:
+      return l && r;
+    case LG_OR:
+      return l || r;
+    default:
+      assert(false);
+  }
+  return 0;
 }
+}  // namespace ir

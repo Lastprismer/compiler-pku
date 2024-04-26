@@ -46,8 +46,9 @@ using namespace std;
 // 非终结符的类型定义
 %type <ast_val> FuncDef FuncType Block Stmt
 %type <ast_val> Exp PrimaryExp Number UnaryExp UnaryOp MulExp AddExp RelExp EqExp LAndExp LOrExp
-// lv4
+// lv4-const
 %type <ast_val> Decl ConstDecl BType ConstDef ConstDeclList ConstInitVal LVal BlockList BlockItem ConstExp
+%type <ast_val> VarDecl VarDef InitVal VarDeclList
 
 %%
 
@@ -65,11 +66,17 @@ CompUnit
   }
   ;
 
-// Decl          ::= ConstDecl;
+// Decl          ::= ConstDecl | VarDecl;
 Decl
   : ConstDecl {
     auto ast = new DeclAST();
-    ast->de = DeclAST::de_t::cnst;
+    ast->de = DeclAST::de_t::CONST;
+    ast->decl = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | VarDecl {
+    auto ast = new DeclAST();
+    ast->de = DeclAST::de_t::VAR;
     ast->decl = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
@@ -88,7 +95,7 @@ ConstDecl
     ast->const_defs.push_back(unique_ptr<ConstDefAST>((ConstDefAST*)$3));
     auto list = unique_ptr<ConstDeclListUnit>((ConstDeclListUnit*)$4);
     // 插入剩余def
-    for (auto it = list->const_defs.end() - 1; it >= list->const_defs.begin(); it--) {
+    for (auto it = list->const_defs.rbegin(); it != list->const_defs.rend(); ++it) {
       ast->const_defs.push_back(unique_ptr<ConstDefAST>(*it));
     }
     $$ = ast;
@@ -110,8 +117,10 @@ ConstDeclList
 BType
   : INT {
     auto ast = new BTypeAST();
+    ast->btype = string("int");
     $$ = ast;
   }
+  ;
 
 // ConstDef      ::= IDENT "=" ConstInitVal;
 ConstDef
@@ -121,6 +130,7 @@ ConstDef
     ast->const_init_val = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
+  ;
 
 // ConstInitVal  ::= ConstExp;
 ConstInitVal
@@ -129,17 +139,64 @@ ConstInitVal
     ast->const_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
+  ;
 
-// FuncDef ::= FuncType IDENT '(' ')' Block;
-// 我们这里可以直接写 '(' 和 ')', 因为之前在 lexer 里已经处理了单个字符的情况
-// 解析完成后, 把这些符号的结果收集起来, 然后拼成一个新的字符串, 作为结果返回
-// $$ 表示非终结符的返回值, 我们可以通过给这个符号赋值的方法来返回结果
-// 你可能会问, FuncType, IDENT 之类的结果已经是字符串指针了
-// 为什么还要用 unique_ptr 接住它们, 然后再解引用, 把它们拼成另一个字符串指针呢
-// 因为所有的字符串指针都是我们 new 出来的, new 出来的内存一定要 delete
-// 否则会发生内存泄漏, 而 unique_ptr 这种智能指针可以自动帮我们 delete
-// 虽然此处你看不出用 unique_ptr 和手动 delete 的区别, 但当我们定义了 AST 之后
-// 这种写法会省下很多内存管理的负担
+// VarDecl       ::= BType VarDef {"," VarDef} ";";
+// |
+// VarDecl     ::= BType VarDef VarDeclList ";";
+// VarDeclList  ::= "," VarDef VarDeclList | epsilon
+VarDecl
+  : BType VarDef VarDeclList ';' {
+    auto ast = new VarDeclAST();
+    ast->btype = unique_ptr<BaseAST>($1);
+    // 插入开头def
+    ast->var_defs.push_back(unique_ptr<VarDefAST>((VarDefAST*)$2));
+    auto list = unique_ptr<VarDeclListUnit>((VarDeclListUnit*)$3);
+    // 插入剩余def
+    for (auto it = list->var_defs.rbegin(); it != list->var_defs.rend(); ++it) {
+      ast->var_defs.push_back(unique_ptr<VarDefAST>(*it));
+    }
+    $$ = ast;
+  }
+  ;
+
+VarDeclList
+  : ',' VarDef VarDeclList {
+    ((VarDeclListUnit*)$3)->var_defs.push_back((VarDefAST*)$2);
+    $$ = $3;
+  }
+  | {
+    auto ast = new VarDeclListUnit();
+    $$ = ast;
+  }
+  ;
+
+// VarDef        ::= IDENT | IDENT "=" InitVal;
+VarDef
+  : IDENT {
+    auto ast = new VarDefAST();
+    ast->var_name = *unique_ptr<string>($1);
+    ast->decl_with_val = false;
+    $$ = ast;
+  }
+  | IDENT '=' InitVal {
+    auto ast = new VarDefAST();
+    ast->var_name = *unique_ptr<string>($1);
+    ast->init_val = unique_ptr<BaseAST>($3);
+    ast->decl_with_val = true;
+    $$ = ast;
+  }
+  ;
+
+// InitVal       ::= Exp;
+InitVal
+  : Exp {
+    auto ast = new InitValAST();
+    ast->exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  ;
+
 // FuncDef   ::= FuncType IDENT "(" ")" Block;
 FuncDef
   : FuncType IDENT '(' ')' Block {
@@ -151,7 +208,6 @@ FuncDef
   }
   ;
 
-// 同上, 不再解释
 // FuncType  ::= "int";
 FuncType
   : INT {
@@ -171,7 +227,7 @@ Block
     ast->block_items.push_back(unique_ptr<BlockItemAST>((BlockItemAST*)$2));
     auto list = unique_ptr<BlockListUnit>((BlockListUnit*)$3);
     // 插入剩余item
-    for (auto it = list->block_items.end() - 1; it >= list->block_items.begin(); it--) {
+    for (auto it = list->block_items.rbegin(); it != list->block_items.rend(); ++it) {
       ast->block_items.push_back(unique_ptr<BlockItemAST>(*it));
     }
     $$ = ast;
@@ -186,7 +242,8 @@ BlockList
   | {
     auto ast = new BlockListUnit();
     $$ = ast;
-  };
+  }
+  ;
 
 // BlockItem     ::= Decl | Stmt;
 BlockItem
@@ -202,6 +259,7 @@ BlockItem
     ast->content = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
+  ;
 
 
 /*
@@ -211,13 +269,13 @@ Stmt          ::= LVal "=" Exp ";"
 Stmt
   : RETURN Exp ';' {
     auto ast = new StmtAST();
-    ast->st = StmtAST::stmttype_t::retn;
+    ast->st = StmtAST::stmttype_t::RETURN;
     ast->exp = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
   | LVal '=' Exp ';' {
     auto ast = new StmtAST();
-    ast->st = StmtAST::stmttype_t::decl;
+    ast->st = StmtAST::stmttype_t::CALC_LVAL;
     ast->lval = unique_ptr<BaseAST>($1);
     ast->exp = unique_ptr<BaseAST>($3);
     $$ = ast;
