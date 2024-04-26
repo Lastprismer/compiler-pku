@@ -27,7 +27,6 @@ struct Node {
 
 class IRGenerator {
  private:
-  bool _enable;
   IRGenerator();
   IRGenerator(const IRGenerator&) = delete;
   IRGenerator(const IRGenerator&&) = delete;
