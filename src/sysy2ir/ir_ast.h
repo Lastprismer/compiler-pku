@@ -217,7 +217,7 @@ class BlockListUnit : public BaseAST {
 // BlockItem     ::= Decl | Stmt;
 class BlockItemAST : public BaseAST {
  public:
-  enum blocktype_t { decl, stmt };
+  enum blocktype_t { DECL, STMT };
   blocktype_t bt;
   unique_ptr<BaseAST> content;
 

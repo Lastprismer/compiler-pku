@@ -223,12 +223,24 @@ FuncType
 Block
   : '{' BlockItem BlockList '}' {
     auto ast = new BlockAST();
+
+    // 防止一个块内多个return
+    bool has_returned = false;
+
     // 插入开头item
     ast->block_items.push_back(unique_ptr<BlockItemAST>((BlockItemAST*)$2));
-    auto list = unique_ptr<BlockListUnit>((BlockListUnit*)$3);
+
     // 插入剩余item
+    auto list = unique_ptr<BlockListUnit>((BlockListUnit*)$3);
     for (auto it = list->block_items.rbegin(); it != list->block_items.rend(); ++it) {
-      ast->block_items.push_back(unique_ptr<BlockItemAST>(*it));
+      auto ptr = *it;
+      if (ptr->bt == BlockItemAST::blocktype_t::STMT && ((StmtAST*)(ptr->content.get()))->st == StmtAST::stmttype_t::RETURN) {
+        if (has_returned) {
+          break;
+        }
+        has_returned = true;
+      }
+      ast->block_items.push_back(unique_ptr<BlockItemAST>(ptr));
     }
     $$ = ast;
   }
@@ -249,13 +261,13 @@ BlockList
 BlockItem
   : Decl {
     auto ast = new BlockItemAST();
-    ast->bt = BlockItemAST::blocktype_t::decl;
+    ast->bt = BlockItemAST::blocktype_t::DECL;
     ast->content = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | Stmt {
     auto ast = new BlockItemAST();
-    ast->bt = BlockItemAST::blocktype_t::stmt;
+    ast->bt = BlockItemAST::blocktype_t::STMT;
     ast->content = unique_ptr<BaseAST>($1);
     $$ = ast;
   }

@@ -295,7 +295,7 @@ void BlockItemAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "BlockItemAST {" << endl;
   make_indent(os, indent + 1);
-  os << "type: " << (bt == blocktype_t::decl ? "decl" : "stmt") << endl;
+  os << "type: " << (bt == blocktype_t::DECL ? "decl" : "stmt") << endl;
   content->Print(os, indent + 1);
   make_indent(os, indent);
   os << " }," << endl;
