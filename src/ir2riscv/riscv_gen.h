@@ -11,13 +11,12 @@
 #include "riscv_build.h"
 #include "riscv_util.h"
 
-using namespace std;
-
 namespace riscv {
 
 enum NodeTag { reg, imm };
 typedef koopa_raw_binary_op_t OpType;
 
+#pragma region Node
 struct Node {
   NodeTag tag;
   union {
@@ -31,6 +30,67 @@ struct Node {
   Node(Node&& n);
 };
 
+#pragma endregion
+
+class BaseModule {
+ private:
+  bool active;
+
+ public:
+  BaseModule();
+  void Activate();
+  void Deactivate();
+  bool IsActive();
+};
+
+// 寄存器模块
+class RegisterModule : public BaseModule {
+ private:
+  // 当前可用寄存器
+  set<Reg> availableRegs;
+
+ public:
+  RegisterModule();
+  // 取出一个当前可用的寄存器
+  Reg getAvailableReg();
+  // 释放一个占用寄存器
+  void releaseReg(Reg reg);
+};
+
+// 栈内存管理模块
+class StackMemoryModule : public BaseModule {
+ private:
+  int stackMemoryNeeded;
+
+ public:
+  enum ValueType { imm, reg, stack };
+  struct InstResultInfo {
+    ValueType ty;
+    union {
+      int imm;
+      int addr;
+      Reg reg;
+    } content;
+    void Output();
+  };
+  struct StoreInfo {
+    const InstResultInfo& dest;
+    const InstResultInfo& src;
+    StoreInfo(const InstResultInfo& dstInfo, const InstResultInfo& srcInfo);
+  };
+  int StackUsed;
+  map<koopa_raw_value_t, InstResultInfo> InstResult;
+  StackMemoryModule();
+  const int& GetStackMem();
+  void SetStackMem(const int& mem);
+  void WriteStoreInst(const StoreInfo& info);
+  void WriteLI(const Reg& rs, int imm);
+  void WriteLW(const Reg& rs, const Reg& rd, int addr);
+  void Debug_OutputInstResult();
+  // 返回应该用的addr
+  int IncreaseStackUsed();
+};
+
 class RiscvGenerator {
  private:
   RiscvGenerator();
@@ -39,32 +99,17 @@ class RiscvGenerator {
   RiscvGenerator& operator=(const RiscvGenerator&) = delete;
 
  public:
-  string function_name;
-  deque<Node> node_stack;
-  // 当前可用寄存器
-  set<Reg> available_regs;
-  GenSettings setting;
+  string FunctionName;
+  GenSettings Setting;
+  RegisterModule RegManager;
+  StackMemoryModule StackMemManager;
   static RiscvGenerator& getInstance();
 
   // 生成函数开头
-  void writePrologue();
+  void WritePrologue();
   // 生成函数屁股
-  void writeEpilogue();
-  // 推入寄存器
-  void pushReg(Reg reg);
-  // 推入立即数
-  void pushImm(int imm);
+  void WriteEpilogue(const StackMemoryModule::InstResultInfo& retValueInfo);
   // 输入运算符，输出指令
-  void writeInst(OpType op);
-
- private:
-  // 取出一个当前可用的寄存器
-  Reg getAvailableReg();
-  // 释放一个占用寄存器
-  void releaseReg(Reg reg);
-  // 生成指令，内部，返回rd寄存器
-  Reg genInst(Node& left, Node& right, OpType op);
-  // 原地优化
-  int magicInst(Node& left, Node& right, OpType op);
+  void WriteBinaInst(OpType op, const Reg& left, const Reg& right);
 };
 };  // namespace riscv

@@ -3,11 +3,11 @@
 
 namespace riscv {
 
-const char* parseSymbol(const char* symbol_name) {
+const char* ParseSymbol(const char* symbol_name) {
   return symbol_name + 1;
 }
 
-const char* get_binary_op_string(koopa_raw_binary_op_t opt) {
+const char* GetBinaryOPString(koopa_raw_binary_op_t opt) {
   koopa_raw_binary_op op = (koopa_raw_binary_op)opt;
   switch (op) {
     case KOOPA_RBO_NOT_EQ:
@@ -47,8 +47,22 @@ const char* get_binary_op_string(koopa_raw_binary_op_t opt) {
   }
 }
 
-bool immInBound(int imm) {
+bool IsImmInBound(int imm) {
   return imm >= -2048 && imm <= 2047;
+}
+const char* GetTypeString(const koopa_raw_value_t& value) {
+  switch (value->ty->tag) {
+    case KOOPA_RTT_INT32:
+      return "int32";
+    case KOOPA_RTT_UNIT:
+      return "void";
+    case KOOPA_RTT_ARRAY:
+      return "array";
+    case KOOPA_RTT_POINTER:
+      return "pointer";
+    case KOOPA_RTT_FUNCTION:
+      return "function";
+  }
 }
 Reg zeroReg() {
   return Reg::x0;

@@ -2,6 +2,8 @@
 
 namespace riscv {
 
+#pragma region Node
+
 Node::Node() {}
 
 Node::Node(int i) : tag(NodeTag::imm) {
@@ -16,27 +18,161 @@ Node::Node(const Node& n) : tag(n.tag), content(n.content) {}
 
 Node::Node(Node&& n) : tag(n.tag), content(n.content) {}
 
+#pragma endregion
+
+#pragma region BaseModule
+
+BaseModule::BaseModule() : active(false) {}
+
+void BaseModule::Activate() {
+  active = true;
+}
+
+void BaseModule::Deactivate() {
+  active = false;
+}
+
+bool BaseModule::IsActive() {
+  return active;
+}
+
+#pragma endregion
+
+#pragma region RegisterManager
+
+RegisterModule::RegisterModule() : BaseModule() {
+  availableRegs = {};
+  for (Reg reg = Reg::t0; reg != Reg::ra; reg = (Reg)((int)reg + 1)) {
+    availableRegs.insert(reg);
+  }
+}
+
+Reg RegisterModule::getAvailableReg() {
+  assert(availableRegs.size() > 0);
+  Reg reg = *availableRegs.begin();
+  availableRegs.erase(reg);
+  return reg;
+}
+
+void RegisterModule::releaseReg(Reg reg) {
+  if (reg != Reg::NONE)
+    availableRegs.insert(reg);
+}
+
+#pragma endregion
+
+#pragma region StackMemoryModule
+
+void StackMemoryModule::InstResultInfo::Output() {
+  cout << "type: ";
+  switch (ty) {
+    case ValueType::imm:
+      cout << "imm, value: " << content.imm << endl;
+      break;
+    case ValueType::reg:
+      cout << "reg, Reg: " << regstr(content.reg) << endl;
+      break;
+    case ValueType::stack:
+      cout << "stack, addr: " << content.addr << endl;
+      break;
+    default:
+      break;
+  }
+  return;
+}
+
+const int& StackMemoryModule::GetStackMem() {
+  assert(IsActive());
+  return stackMemoryNeeded;
+}
+
+void StackMemoryModule::SetStackMem(const int& mem) {
+  assert(IsActive());
+  stackMemoryNeeded = mem;
+}
+
+StackMemoryModule::StoreInfo::StoreInfo(const InstResultInfo& dstInfo,
+                                        const InstResultInfo& srcInfo)
+    : dest(dstInfo), src(srcInfo) {
+  assert(dstInfo.ty != StackMemoryModule::ValueType::imm);
+}
+
+void StackMemoryModule::WriteStoreInst(const StoreInfo& info) {
+  RiscvGenerator& gen = RiscvGenerator::getInstance();
+  StackMemoryModule smem = gen.StackMemManager;
+  ostream& os = gen.Setting.getOs();
+  switch (info.src.ty) {
+    case StackMemoryModule::ValueType::imm:
+      if (info.dest.ty == StackMemoryModule::ValueType::reg) {
+        // store imm to reg
+        // 现在不会用到，之后优化寄存器策略时可能用？
+        li(os, info.dest.content.reg, info.src.content.imm);
+      } else {
+        // store imm to stack
+        Reg rd = gen.RegManager.getAvailableReg();
+        li(os, rd, info.src.content.imm);
+        sw(os, Reg::sp, rd, info.dest.content.addr);
+        gen.RegManager.releaseReg(rd);
+      }
+      break;
+    case StackMemoryModule::ValueType::reg:
+      if (info.dest.ty == StackMemoryModule::ValueType::reg) {
+        // store reg to reg
+        // 啥也不用做，最后会改表
+      } else {
+        // store reg to stack
+        sw(os, Reg::sp, info.src.content.reg, info.dest.content.addr);
+        gen.RegManager.releaseReg(info.src.content.reg);
+      }
+      break;
+    case StackMemoryModule::ValueType::stack: {
+      if (info.dest.ty == StackMemoryModule::ValueType::stack) {
+        Reg rs = gen.RegManager.getAvailableReg();
+        lw(os, rs, Reg::sp, info.src.content.addr);
+        sw(os, Reg::sp, rs, info.dest.content.addr);
+        gen.RegManager.releaseReg(rs);
+      }
+    }
+  }
+  return;
+}
+
+void StackMemoryModule::WriteLI(const Reg& rd, int imm) {
+  ostream& os = RiscvGenerator::getInstance().Setting.getOs();
+  li(os, rd, imm);
+}
+
+void StackMemoryModule::WriteLW(const Reg& rs, const Reg& rd, int addr) {
+  ostream& os = RiscvGenerator::getInstance().Setting.getOs();
+  lw(os, rs, rd, addr);
+}
+
+void StackMemoryModule::Debug_OutputInstResult() {
+  cout << endl;
+  cout << "count: " << InstResult.size() << endl;
+  for (auto i = InstResult.begin(); i != InstResult.end(); i++) {
+    cout << GetTypeString(i->first) << "  ";
+    i->second.Output();
+  }
+  cout << endl;
+}
+
+int StackMemoryModule::IncreaseStackUsed() {
+  StackUsed += 4;
+  return StackUsed;
+}
+
+StackMemoryModule::StackMemoryModule()
+    : BaseModule(), stackMemoryNeeded(0), StackUsed(0) {
+  InstResult = map<koopa_raw_value_t, InstResultInfo>();
+}
+
+#pragma endregion
+
 RiscvGenerator::RiscvGenerator() {
-  setting.setOs(cout).setIndent(0);
-  available_regs = set<Reg>({
-      t0,
-      t1,
-      t2,
-      t3,
-      t4,
-      t5,
-      t6,
-      a0,
-      a1,
-      a2,
-      a3,
-      a4,
-      a5,
-      a6,
-      a7,
-  });
-  function_name = "";
-  node_stack = deque<Node>();
+  Setting.setOs(cout).setIndent(0);
+  FunctionName = "";
+  RegManager = RegisterModule();
 }
 
 RiscvGenerator& RiscvGenerator::getInstance() {
@@ -44,267 +180,138 @@ RiscvGenerator& RiscvGenerator::getInstance() {
   return riscgen;
 }
 
-void RiscvGenerator::writePrologue() {
-  ostream& os = setting.getOs();
+void RiscvGenerator::WritePrologue() {
+  ostream& os = Setting.getOs();
   os << "  .text" << endl;
-  os << "  .globl " << function_name << endl;
-  os << function_name << ":" << endl;
+  os << "  .globl " << FunctionName << endl;
+  os << FunctionName << ":" << endl;
+
+  // 分配栈内存
+  int stackMemoryAlloc = StackMemManager.GetStackMem();
+  if (stackMemoryAlloc == 0)
+    return;
+  if (IsImmInBound(-stackMemoryAlloc)) {
+    addi(os, Reg::sp, Reg::sp, -stackMemoryAlloc);
+  } else {
+    Reg rd = RegManager.getAvailableReg();
+    li(os, rd, -stackMemoryAlloc);
+    add(os, Reg::sp, Reg::sp, rd);
+    RegManager.releaseReg(rd);
+  }
 }
 
-void RiscvGenerator::writeEpilogue() {
-  ostream& os = setting.getOs();
+void RiscvGenerator::WriteEpilogue(
+    const StackMemoryModule::InstResultInfo& retValueInfo) {
+  ostream& os = Setting.getOs();
   // 此时栈内应有唯一值
-  assert(node_stack.size() >= 1);
-  Node retn = node_stack.front();
-  if (retn.tag == NodeTag::imm) {
-    li(os, Reg::a0, retn.content.imm);
-    ret(os);
+  if (retValueInfo.ty == StackMemoryModule::ValueType::imm) {
+    li(os, Reg::a0, retValueInfo.content.imm);
+  } else if (retValueInfo.ty == StackMemoryModule::ValueType::reg) {
+    mv(os, Reg::a0, retValueInfo.content.reg);
   } else {
-    mv(os, Reg::a0, retn.content.reg);
-    ret(os);
-  }
-}
-
-void RiscvGenerator::pushReg(Reg reg) {
-  if (!setting.start_writing)
-    return;
-  Node bi;
-  bi.tag = NodeTag::reg;
-  bi.content.reg = reg;
-  node_stack.push_front(bi);
-}
-
-void RiscvGenerator::pushImm(int imm) {
-  if (!setting.start_writing)
-    return;
-  // if (imm == 0) {
-  // 保证所有立即数0都被替换为寄存器x0
-  // 不保证
-  // pushReg(Reg::x0);
-  Node bi;
-  bi.tag = NodeTag::imm;
-  bi.content.imm = imm;
-  node_stack.push_front(bi);
-}
-
-void RiscvGenerator::writeInst(OpType op) {
-  if (!setting.start_writing)
-    return;
-  assert(node_stack.size() >= 2);
-  // 取出两个值，先进的为左
-  Node right = node_stack.front();
-  node_stack.pop_front();
-  Node left = node_stack.front();
-  node_stack.pop_front();
-
-  if (left.tag == NodeTag::imm && right.tag == NodeTag::imm) {
-    pushImm(magicInst(left, right, op));
-    return;
+    lw(os, a0, Reg::sp, retValueInfo.content.addr);
   }
 
-  Reg rd = genInst(left, right, op);
-
-  // 推入结果
-  pushReg(rd);
-}
-
-Reg RiscvGenerator::getAvailableReg() {
-  assert(available_regs.size() > 0);
-  Reg reg = *available_regs.begin();
-  available_regs.erase(reg);
-  return reg;
-}
-
-void RiscvGenerator::releaseReg(Reg reg) {
-  if (reg != Reg::NONE)
-    available_regs.insert(reg);
-}
-
-Reg RiscvGenerator::genInst(Node& left, Node& right, OpType op) {
-  ostream& os = setting.getOs();
-  Reg rs = Reg::NONE;
-  Reg rd = Reg::NONE;
-
-  if (op == koopa_raw_binary_op::KOOPA_RBO_ADD) {
-#pragma region add
-    if (left.tag == NodeTag::imm) {
-      if (right.tag == NodeTag::imm) {
-        // imm + imm
-        rd = getAvailableReg();
-        if (immInBound(right.content.imm)) {
-          // addi right to left
-          li(os, rd, left.content.imm);
-          addi(os, rd, rd, right.content.imm);
-          return rd;
-        } else if (immInBound(left.content.imm)) {
-          // addi left to right
-          li(os, rd, right.content.imm);
-          addi(os, rd, rd, left.content.imm);
-          return rd;
-        } else {
-          // add down
-          rs = getAvailableReg();
-          li(os, rd, left.content.imm);
-          li(os, rs, right.content.imm);
-        }
-      } else if (right.tag == NodeTag::reg) {
-        // imm + reg
-        rd = right.content.reg;
-        if (immInBound(left.content.imm)) {
-          addi(os, rd, rd, left.content.imm);
-          return rd;
-        } else {
-          // add down
-          rs = getAvailableReg();
-          li(os, rs, left.content.imm);
-        }
-      }
-    } else if (left.tag == NodeTag::reg) {
-      if (right.tag == NodeTag::imm) {
-        // reg + imm
-        rd = left.content.reg;
-        if (immInBound(right.content.imm)) {
-          addi(os, rd, rd, right.content.imm);
-          return rd;
-        } else {
-          // add down
-          rs = getAvailableReg();
-          li(os, rs, right.content.imm);
-        }
-        return rd;
-      } else if (right.tag == NodeTag::reg) {
-        // reg + reg
-        rd = left.content.reg;
-        rs = right.content.reg;
-      }
-      add(os, rd, rd, rs);
-      releaseReg(rs);
-      return rd;
-    }
-#pragma endregion
-
-  } else if (op == koopa_raw_binary_op::KOOPA_RBO_SUB) {
-#pragma region sub
-    if (left.tag == NodeTag::imm) {
-      // imm - x
-      rd = getAvailableReg();
-      li(os, rd, left.content.imm);
-    } else
-      rd = left.content.reg;
-    // reg - x
-    if (right.tag == NodeTag::imm) {
-      // reg - imm
-      if (immInBound(-right.content.imm)) {
-        addi(os, rd, rd, -right.content.imm);
-        return rd;
-      } else {
-        rs = getAvailableReg();
-        li(os, rs, right.content.imm);
-        sub(os, rd, rd, rs);
-        releaseReg(rs);
-        return rd;
-      }
+  // 回收栈内存
+  int stackMemoryAlloc = StackMemManager.GetStackMem();
+  if (stackMemoryAlloc != 0) {
+    if (IsImmInBound(stackMemoryAlloc)) {
+      addi(os, Reg::sp, Reg::sp, stackMemoryAlloc);
     } else {
-      // reg - reg
-      rs = right.content.reg;
-      sub(os, rd, rd, rs);
-      releaseReg(rs);
-      return rd;
+      Reg rd = RegManager.getAvailableReg();
+      li(os, rd, stackMemoryAlloc);
+      add(os, Reg::sp, Reg::sp, rd);
+      RegManager.releaseReg(rd);
     }
-#pragma endregion
   }
+  ret(os);
+}
 
-  if (left.tag == NodeTag::imm) {
-    rd = getAvailableReg();
-    li(os, rd, left.content.imm);
-  } else {
-    rd = left.content.reg;
-  }
-  if (right.tag == NodeTag::imm) {
-    rs = getAvailableReg();
-    li(os, rs, right.content.imm);
-  } else {
-    rs = right.content.reg;
-  }
+void RiscvGenerator::WriteBinaInst(OpType op,
+                                   const Reg& left,
+                                   const Reg& right) {
+  ostream& os = Setting.getOs();
 
   switch (op) {
     case koopa_raw_binary_op::KOOPA_RBO_NOT_EQ:
 #pragma region neq
-      neq(os, rd, rd, rs);
-      releaseReg(rs);
+      neq(os, left, left, right);
+      RegManager.releaseReg(right);
       break;
 #pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_EQ:
 #pragma region eq
-      eq(os, rd, rd, rs);
-      releaseReg(rs);
+      eq(os, left, left, right);
+      RegManager.releaseReg(right);
       break;
 #pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_GT:
 #pragma region sgt
-      sgt(os, rd, rd, rs);
-      releaseReg(rs);
+      sgt(os, left, left, right);
+      RegManager.releaseReg(right);
       break;
 #pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_LT:
 #pragma region slt
-      slt(os, rd, rd, rs);
-      releaseReg(rs);
+      slt(os, left, left, right);
+      RegManager.releaseReg(right);
       break;
 #pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_GE:
 #pragma region sge
-      sge(os, rd, rd, rs);
-      releaseReg(rs);
+      sge(os, left, left, right);
       break;
 #pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_LE:
 #pragma region sle
-      sle(os, rd, rd, rs);
-      releaseReg(rs);
+      sle(os, left, left, right);
       break;
 #pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_ADD:
+#pragma region add
+      add(os, left, left, right);
+      break;
+#pragma endregion
+
     case koopa_raw_binary_op::KOOPA_RBO_SUB:
-      assert(false);
+#pragma region sub
+      sub(os, left, left, right);
+      break;
+#pragma endregion
+
     case koopa_raw_binary_op::KOOPA_RBO_MUL:
 #pragma region mul
-      mul(os, rd, rd, rs);
-      releaseReg(rs);
+      mul(os, left, left, right);
       break;
 #pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_DIV:
 #pragma region div
-      div(os, rd, rd, rs);
-      releaseReg(rs);
+      div(os, left, left, right);
       break;
 #pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_MOD:
 #pragma region mod
-      rem(os, rd, rd, rs);
-      releaseReg(rs);
+      rem(os, left, left, right);
       break;
 #pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_AND:
 #pragma region and
-      andr(os, rd, rd, rs);
-      releaseReg(rs);
+      andr(os, left, left, right);
       break;
 #pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_OR:
 #pragma region or
-      orr(os, rd, rd, rs);
-      releaseReg(rs);
+      orr(os, left, left, right);
       break;
 #pragma endregion
 
@@ -312,44 +319,6 @@ Reg RiscvGenerator::genInst(Node& left, Node& right, OpType op) {
       cerr << op;
       assert(false);
   }
-  return rd;
 }
-
-#pragma region uncanny feat
-int RiscvGenerator::magicInst(Node& left, Node& right, OpType op) {
-  int l = left.content.imm;
-  int r = right.content.imm;
-  switch (op) {
-    case koopa_raw_binary_op::KOOPA_RBO_NOT_EQ:
-      return l != r;
-    case koopa_raw_binary_op::KOOPA_RBO_EQ:
-      return l == r;
-    case koopa_raw_binary_op::KOOPA_RBO_GT:
-      return l > r;
-    case koopa_raw_binary_op::KOOPA_RBO_LT:
-      return l < r;
-    case koopa_raw_binary_op::KOOPA_RBO_GE:
-      return l >= r;
-    case koopa_raw_binary_op::KOOPA_RBO_LE:
-      return l <= r;
-    case koopa_raw_binary_op::KOOPA_RBO_ADD:
-      return l + r;
-    case koopa_raw_binary_op::KOOPA_RBO_SUB:
-      return l - r;
-    case koopa_raw_binary_op::KOOPA_RBO_MUL:
-      return l * r;
-    case koopa_raw_binary_op::KOOPA_RBO_DIV:
-      return l / r;
-    case koopa_raw_binary_op::KOOPA_RBO_MOD:
-      return l % r;
-    case koopa_raw_binary_op::KOOPA_RBO_AND:
-      return l && r;
-    case koopa_raw_binary_op::KOOPA_RBO_OR:
-      return l | r;
-    default:
-      assert(false);
-  }
-}
-#pragma endregion
 
 }  // namespace riscv

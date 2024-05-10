@@ -235,12 +235,12 @@ Block
     for (auto it = list->block_items.rbegin(); it != list->block_items.rend(); ++it) {
       auto ptr = *it;
       if (ptr->bt == BlockItemAST::blocktype_t::STMT && ((StmtAST*)(ptr->content.get()))->st == StmtAST::stmttype_t::RETURN) {
-        if (has_returned) {
-          break;
-        }
         has_returned = true;
       }
       ast->block_items.push_back(unique_ptr<BlockItemAST>(ptr));
+      if (has_returned) {
+        break;
+      }
     }
     $$ = ast;
   }

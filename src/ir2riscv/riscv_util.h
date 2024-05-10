@@ -28,15 +28,35 @@ typedef enum riscv_registers_enum_t {
   a5,
   a6,
   a7,
+  s0,  // fp, caution
+  s1,
+  s2,
+  s3,
+  s4,
+  s5,
+  s6,
+  s7,
+  s8,
+  s9,
+  s10,
+  s11,
+  ra,
+  sp,
   x0  // 0
 } Reg;
 
 // 将具名符号或临时符号名称删去头部字符
-const char* parseSymbol(const char* symbol_name);
+const char* ParseSymbol(const char* symbol_name);
+
 // 获取koopa_raw_binary_op对应的符号的字符串
-const char* get_binary_op_string(koopa_raw_binary_op_t opt);
+const char* GetBinaryOPString(koopa_raw_binary_op_t opt);
+
 // [-2048, 2047]
-bool immInBound(int imm);
+bool IsImmInBound(int imm);
+
+// 输出koopa_raw_type
+const char* GetTypeString(const koopa_raw_value_t& value);
 
 Reg zeroReg();
-}
+
+}  // namespace riscv

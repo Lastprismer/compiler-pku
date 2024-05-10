@@ -9,6 +9,16 @@ void li(ostream& os, const Reg& dest, int imm) {
   os << "  li " << regstr(dest) << ", " << imm << endl;
 }
 
+void lw(ostream& os, const Reg& rs, const Reg& rd, int addr) {
+  os << "  lw " << regstr(rs) << ", " << addr << "(" << regstr(rd) << ")"
+     << endl;
+}
+
+void sw(ostream& os, const Reg& rs1, const Reg& rs2, int addr) {
+  os << "  sw " << regstr(rs2) << ", " << addr << "(" << regstr(rs1) << ")"
+     << endl;
+}
+
 void mv(ostream& os, const Reg& rd, const Reg& rs) {
   os << "  mv " << regstr(rd) << ", " << regstr(rs) << endl;
 }
@@ -79,40 +89,68 @@ void orr(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2) {
      << endl;
 }
 
-string regstr(Reg reg) {
+const char* regstr(Reg reg) {
   switch (reg) {
     case t0:
-      return string("t0");
+      return "t0";
     case t1:
-      return string("t1");
+      return "t1";
     case t2:
-      return string("t2");
+      return "t2";
     case t3:
-      return string("t3");
+      return "t3";
     case t4:
-      return string("t4");
+      return "t4";
     case t5:
-      return string("t5");
+      return "t5";
     case t6:
-      return string("t6");
+      return "t6";
     case a0:
-      return string("a0");
+      return "a0";
     case a1:
-      return string("a1");
+      return "a1";
     case a2:
-      return string("a2");
+      return "a2";
     case a3:
-      return string("a3");
+      return "a3";
     case a4:
-      return string("a4");
+      return "a4";
     case a5:
-      return string("a5");
+      return "a5";
     case a6:
-      return string("a6");
+      return "a6";
     case a7:
-      return string("a7");
+      return "a7";
+    case s0:
+      return "s0";
+    case s1:
+      return "s1";
+    case s2:
+      return "s2";
+    case s3:
+      return "s3";
+    case s4:
+      return "s4";
+    case s5:
+      return "s5";
+    case s6:
+      return "s6";
+    case s7:
+      return "s7";
+    case s8:
+      return "s8";
+    case s9:
+      return "s9";
+    case s10:
+      return "s10";
+    case s11:
+      return "s11";
+    case ra:
+      return "ra";
+    case sp:
+      return "sp";
     case x0:
-      return string("x0");
+      return "x0";
     case NONE:
     default:
       assert(false);

@@ -20,6 +20,14 @@ void ret(ostream& os);
 // 行为：将imm加载到dest寄存器
 void li(ostream& os, const Reg& dest, int imm);
 
+// 语法：lw {rs}, {imm12}({rd})
+// 行为：rs = M[imm12 + rd]
+void lw(ostream& os, const Reg& rs, const Reg& rd, int addr);
+
+// 语法：sw {rs2}, {imm12}({rs1})
+// 行为：M[imm12 + rs1] = rs2
+void sw(ostream& os, const Reg& rs1, const Reg& rs2, int addr);
+
 // 语法：mv {rd}, {rs}
 // 行为：rd = rs
 void mv(ostream& os, const Reg& rd, const Reg& rs);
@@ -82,7 +90,7 @@ void orr(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2);
 
 /* --- 辅助函数 ---*/
 
-string regstr(Reg reg);
+const char* regstr(Reg reg);
 
 // 最终行为：rd = rs1 <= rs2
 void sle(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2);
