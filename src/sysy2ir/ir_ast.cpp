@@ -103,14 +103,14 @@ void ConstDefAST::Print(ostream& os, int indent) const {
 
 void ConstDefAST::Dump() {
   IRGenerator& gen = IRGenerator::getInstance();
+  // 计算常数表达式
   const_init_val->Dump();
-  // 此时栈顶元素应为表达式的值，弹出并检查
-  assert(gen.node_stack.size() >= 1);
-  const Node node = gen.getFrontNode();
-  assert(node.tag == NodeTag::IMM);
+  auto cv = dynamic_cast<ConstInitValAST*>(const_init_val.get());
+
   // 取值加入符号表
   DeclaimProcessor& pcs = gen.symbol_table.getDProc();
-  SymbolTableEntry entry = pcs.GenerateConstEntry(var_name, node.imm);
+  SymbolTableEntry entry =
+      pcs.GenerateConstEntry(var_name, cv->thisRet.GetValue());
   gen.symbol_table.insertEntry(entry);
 }
 
@@ -128,6 +128,8 @@ void ConstInitValAST::Print(ostream& os, int indent) const {
 
 void ConstInitValAST::Dump() {
   const_exp->Dump();
+  auto ce = dynamic_cast<ConstExpAST*>(const_exp.get());
+  thisRet = ce->thisRet;
 }
 
 #pragma endregion
@@ -189,15 +191,16 @@ void VarDefAST::Dump() {
   DeclaimProcessor& pcs = gen.symbol_table.getDProc();
 
   SymbolTableEntry entry = pcs.GenerateVarEntry(var_name);
-  gen.writeAllocInst(entry);
+  gen.WriteAllocInst(entry);
   gen.symbol_table.insertEntry(entry);
   // 如果有初始化
   if (init_with_val) {
     // 类似常数的定义
     init_val->Dump();
-    // 赋值，但栈顶元素不用手动弹出，在write里
+    auto iv = dynamic_cast<InitValAST*>(init_val.get());
+    // 赋值，加入符号表
     SymbolTableEntry s_entry = gen.symbol_table.getEntry(entry.var_name);
-    gen.writeStoreInst(s_entry);
+    gen.writeStoreInst(iv->thisRet, s_entry);
   }
 }
 
@@ -215,6 +218,8 @@ void InitValAST::Print(ostream& os, int indent) const {
 
 void InitValAST::Dump() {
   exp->Dump();
+  auto ae = dynamic_cast<ExpAST*>(exp.get());
+  thisRet = ae->thisRet;
 }
 
 #pragma endregion
@@ -237,9 +242,9 @@ void FuncDefAST::Dump() {
   func_type->Dump();
   gen.function_name = func_name;
 
-  gen.writeFuncPrologue();
+  gen.WriteFuncPrologue();
   block->Dump();
-  gen.writeFuncEpilogue();
+  gen.WriteFuncEpilogue();
 }
 
 #pragma endregion
@@ -271,7 +276,7 @@ void BlockAST::Print(ostream& os, int indent) const {
 
 void BlockAST::Dump() {
   IRGenerator& gen = IRGenerator::getInstance();
-  gen.writeBlockPrologue();
+  gen.WriteBlockPrologue();
   for (auto it = block_items.begin(); it != block_items.end(); it++) {
     (*it)->Dump();
   }
@@ -330,13 +335,19 @@ void StmtAST::Dump() {
   IRGenerator& gen = IRGenerator::getInstance();
   if (st == stmttype_t::CALC_LVAL) {
     AssignmentProcessor& aproc = gen.symbol_table.getAProc();
+    // 记录左值
     aproc.Enable();
     lval->Dump();
     aproc.Disable();
+
+    // 计算表达式
     exp->Dump();
-    // 此时栈顶为需要的值，赋值
-    gen.writeStoreInst(gen.symbol_table.getEntry(aproc.GetCurrentVar()));
-  } else {
+    auto ee = dynamic_cast<ExpAST*>(exp.get());
+
+    // 赋值
+    gen.writeStoreInst(ee->thisRet,
+                       gen.symbol_table.getEntry(aproc.GetCurrentVar()));
+  } else if (st == stmttype_t::RETURN) {
     exp->Dump();
     auto ee = dynamic_cast<ExpAST*>(exp.get());
     // 设置返回值
@@ -375,9 +386,10 @@ void LValAST::Dump() {
   // 判断变量类型
   SymbolTableEntry& entry = gen.symbol_table.getEntry(var_name);
   if (entry.symbol_type == SymbolType::CONST) {
+    // const只会是右值
     if (entry.var_type == VarType::INT) {
       // const int
-      gen.pushImm(entry.value);
+      thisRet = RetInfo(entry.value);
     } else {
       // const arr
       assert(false);
@@ -391,12 +403,12 @@ void LValAST::Dump() {
         AssignmentProcessor& aproc = gen.symbol_table.getAProc();
         aproc.SetCurrentVar(var_name);
       } else {
-        // 为右值，将其加载并入栈
-        gen.writeLoadInst(entry);
+        // 为右值，获取其临时符号
+        thisRet = gen.writeLoadInst(entry);
       }
-
     } else {
       // var arr
+      // 不支持
       assert(false);
     }
   }
@@ -425,8 +437,10 @@ void PrimaryExpAST::Dump() {
       thisRet = ee->thisRet;
     } break;
     case primary_exp_type_t::LVal: {
-      // do nothing
-    }
+      // 右值
+      auto lv = dynamic_cast<LValAST*>(content.get());
+      thisRet = lv->thisRet;
+    } break;
     case primary_exp_type_t::Number: {
       auto nb = dynamic_cast<NumberAST*>(content.get());
       thisRet = RetInfo(nb->int_const);
@@ -938,9 +952,8 @@ void ConstExpAST::Print(ostream& os, int indent) const {
 void ConstExpAST::Dump() {
   exp->Dump();
   auto ptr = dynamic_cast<ExpAST*>(exp.get());
-  RetInfo info = ptr->thisRet;
-  assert(info.ty == info.ty_int);
-  thisRet = info;
+  thisRet = ptr->thisRet;
+  assert(thisRet.ty == RetInfo::ty_int);
 }
 
 #pragma endregion

@@ -39,13 +39,13 @@ string SymbolTableEntry::GetAllocInst() const {
   }
 }
 
-string SymbolTableEntry::GetLoadInst(string in_sym_name) const {
+string SymbolTableEntry::GetLoadInst(string sym_name_loadto) const {
   assert(symbol_type == SymbolType::VAR);
   if (var_type == VarType::INT) {
     // int
     // %0 = load @x
     stringstream ss;
-    ss << in_sym_name << " = load " << GetAllocName();
+    ss << sym_name_loadto << " = load " << GetAllocName();
     return ss.str();
   } else {
     cerr << "[NOT SUPPORTED]" << endl;

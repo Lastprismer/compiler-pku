@@ -8,8 +8,6 @@ RetInfo::RetInfo(int _value) : ty(ty_int), value(_value) {}
 
 RetInfo::RetInfo(string _symbol) : ty(ty_sbl), name(_symbol) {}
 
-RetInfo::RetInfo(int _, string _var) : ty(ty_var), name(_var) {}
-
 const int& RetInfo::GetValue() const {
   assert(ty == ty_int);
   return value;
@@ -20,38 +18,12 @@ const string& RetInfo::GetSym() const {
   return name;
 }
 
-const string& RetInfo::GetVar() const {
-  assert(ty == ty_var);
-  return name;
-}
-
-Node::Node() {}
-
-Node::Node(int i) : tag(NodeTag::IMM), imm(i) {}
-
-Node::Node(const Node& n) : tag(n.tag) {
-  if (tag == NodeTag::IMM) {
-    imm = n.imm;
-  } else if (tag == NodeTag::SYMBOL) {
-    symbol_name = n.symbol_name;
-  }
-}
-
-Node::Node(Node&& n) : tag(n.tag) {
-  if (tag == NodeTag::IMM) {
-    imm = n.imm;
-  } else if (tag == NodeTag::SYMBOL) {
-    symbol_name = n.symbol_name;
-  }
-}
-
 IRGenerator::IRGenerator() {
   setting.setOs(cout).setIndent(0);
 
   variable_pool = 0;
   function_name = "";
   return_type = "";
-  node_stack = deque<Node>();
   symbol_table = SymbolTable();
   FunctionRetInfo = RetInfo();
 }
@@ -61,12 +33,12 @@ IRGenerator& IRGenerator::getInstance() {
   return gen;
 }
 
-void IRGenerator::writeFuncPrologue() {
+void IRGenerator::WriteFuncPrologue() {
   setting.getOs() << "fun @" << function_name << "(): " << return_type << "{\n";
   return;
 }
 
-void IRGenerator::writeFuncEpilogue() {
+void IRGenerator::WriteFuncEpilogue() {
   ostream& os = setting.getOs();
   os << setting.getIndentStr() << "ret " << parseRetInfo(FunctionRetInfo)
      << "\n"
@@ -74,7 +46,7 @@ void IRGenerator::writeFuncEpilogue() {
   return;
 }
 
-void IRGenerator::writeBlockPrologue() {
+void IRGenerator::WriteBlockPrologue() {
   ostream& os = setting.getOs();
   os << setting.getIndentStr()
      << "%"
@@ -82,33 +54,6 @@ void IRGenerator::writeBlockPrologue() {
      << endl;
   setting.getIndent() += 2;
   return;
-}
-
-void IRGenerator::pushSymbol(int syb) {
-  Node comp;
-  comp.tag = NodeTag::SYMBOL;
-  if (syb == -1) {
-    comp.symbol_name = getSymbolName(registerNewSymbol());
-  }
-  comp.symbol_name = getSymbolName(syb);
-  node_stack.push_front(comp);
-}
-
-void IRGenerator::pushImm(int int_const) {
-  Node comp;
-  comp.tag = NodeTag::IMM;
-  comp.imm = int_const;
-  node_stack.push_front(comp);
-}
-
-const Node& IRGenerator::checkFrontNode() const {
-  return node_stack.front();
-}
-
-Node IRGenerator::getFrontNode() {
-  Node node = node_stack.front();
-  node_stack.pop_front();
-  return node;
 }
 
 const RetInfo IRGenerator::WriteUnaryInst(const RetInfo& left, OpID op) {
@@ -152,32 +97,29 @@ const RetInfo IRGenerator::WriteLogicInst(const RetInfo& left,
   return WriteBinaryInst(n_left, n_right, op);
 }
 
-void IRGenerator::writeAllocInst(const SymbolTableEntry& entry) {
+void IRGenerator::WriteAllocInst(const SymbolTableEntry& entry) {
   ostream& os = setting.getOs();
   os << setting.getIndentStr() << entry.GetAllocInst() << endl;
 }
 
-void IRGenerator::writeLoadInst(const SymbolTableEntry& entry) {
+const RetInfo IRGenerator::writeLoadInst(const SymbolTableEntry& entry) {
   ostream& os = setting.getOs();
-  // 申请新符号
-  int new_symbol = registerNewSymbol();
-  os << setting.getIndentStr() << entry.GetLoadInst(getSymbolName(new_symbol))
-     << endl;
-  // 推入节点
-  pushSymbol(new_symbol);
+  const string newSymbolName = getSymbolName(registerNewSymbol());
+  os << setting.getIndentStr() << entry.GetLoadInst(newSymbolName) << endl;
+  return RetInfo(newSymbolName);
 }
 
-void IRGenerator::writeStoreInst(const SymbolTableEntry& entry) {
+void IRGenerator::writeStoreInst(const RetInfo& value,
+                                 const SymbolTableEntry& entry) {
   ostream& os = setting.getOs();
-  // 弹出栈顶节点
-  const Node& node = getFrontNode();
 
   os << setting.getIndentStr();
-  if (node.tag == NodeTag::IMM) {
+  if (value.ty == RetInfo::ty_int) {
     // 常量赋值
-    os << entry.GetStoreInst(node.imm) << endl;
-  } else if (node.tag == NodeTag::SYMBOL) {
-    os << entry.GetStoreInst(node.symbol_name) << endl;
+    os << entry.GetStoreInst(value.GetValue()) << endl;
+  } else if (value.ty == RetInfo::ty_sbl) {
+    // 符号赋值
+    os << entry.GetStoreInst(value.GetSym()) << endl;
   }
 }
 

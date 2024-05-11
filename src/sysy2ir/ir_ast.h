@@ -129,6 +129,7 @@ class ConstDefAST : public BaseAST {
 class ConstInitValAST : public BaseAST {
  public:
   unique_ptr<BaseAST> const_exp;
+  RetInfo thisRet;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
@@ -172,6 +173,7 @@ class VarDefAST : public BaseAST {
 class InitValAST : public BaseAST {
  public:
   unique_ptr<BaseAST> exp;
+  RetInfo thisRet;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
