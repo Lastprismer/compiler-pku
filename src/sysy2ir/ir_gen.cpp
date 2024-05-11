@@ -38,20 +38,25 @@ void IRGenerator::WriteFuncPrologue() {
 }
 
 void IRGenerator::WriteFuncEpilogue() {
-  ostream& os = setting.getOs();
-  os << setting.getIndentStr() << "ret " << parseRetInfo(functionRetInfo)
-     << "\n"
-     << "}" << endl;
+  if (setting.shouldWriting) {
+    ostream& os = setting.getOs();
+    os << setting.getIndentStr() << "ret " << parseRetInfo(functionRetInfo)
+       << "\n"
+       << "}" << endl;
+    setting.shouldWriting = false;
+  }
   return;
 }
 
 void IRGenerator::WriteBlockPrologue() {
-  ostream& os = setting.getOs();
-  os << setting.getIndentStr()
-     << "%"
-        "entry:"
-     << endl;
-  setting.getIndent() += 2;
+  if (setting.shouldWriting) {
+    ostream& os = setting.getOs();
+    os << setting.getIndentStr()
+       << "%"
+          "entry:"
+       << endl;
+    setting.getIndent() += 2;
+  }
   return;
 }
 
@@ -82,8 +87,9 @@ const RetInfo IRGenerator::WriteBinaryInst(const RetInfo& left,
   }
 
   const string newSymbolName = getSymbolName(registerNewSymbol());
-  os << setting.getIndentStr() << newSymbolName << " = " << BiOp2koopa(op)
-     << ' ' << parseRetInfo(left) << ", " << parseRetInfo(right) << endl;
+  if (setting.shouldWriting)
+    os << setting.getIndentStr() << newSymbolName << " = " << BiOp2koopa(op)
+       << ' ' << parseRetInfo(left) << ", " << parseRetInfo(right) << endl;
   return RetInfo(newSymbolName);
 }
 
@@ -97,6 +103,8 @@ const RetInfo IRGenerator::WriteLogicInst(const RetInfo& left,
 }
 
 void IRGenerator::WriteAllocInst(const SymbolTableEntry& entry) {
+  if (!setting.shouldWriting)
+    return;
   ostream& os = setting.getOs();
   os << setting.getIndentStr() << entry.GetAllocInst() << endl;
 }
@@ -104,12 +112,15 @@ void IRGenerator::WriteAllocInst(const SymbolTableEntry& entry) {
 const RetInfo IRGenerator::WriteLoadInst(const SymbolTableEntry& entry) {
   ostream& os = setting.getOs();
   const string newSymbolName = getSymbolName(registerNewSymbol());
-  os << setting.getIndentStr() << entry.GetLoadInst(newSymbolName) << endl;
+  if (setting.shouldWriting)
+    os << setting.getIndentStr() << entry.GetLoadInst(newSymbolName) << endl;
   return RetInfo(newSymbolName);
 }
 
 void IRGenerator::WriteStoreInst(const RetInfo& value,
                                  const SymbolTableEntry& entry) {
+  if (!setting.shouldWriting)
+    return;
   ostream& os = setting.getOs();
 
   os << setting.getIndentStr();

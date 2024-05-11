@@ -1,5 +1,7 @@
 #include "output_setting.h"
 
+GenSettings::GenSettings() : shouldWriting(true) {}
+
 GenSettings& GenSettings::setOs(ostream& o) {
   os = &o;
   return *this;

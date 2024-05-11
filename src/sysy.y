@@ -224,20 +224,11 @@ Block
   : '{' BlockList '}' {
     auto ast = new BlockAST();
 
-    // 防止一个块内多个return
-    bool has_returned = false;
-
     // 插入item
     auto list = unique_ptr<BlockListUnit>((BlockListUnit*)$2);
     for (auto it = list->block_items.rbegin(); it != list->block_items.rend(); ++it) {
       auto ptr = *it;
-      if (ptr->bt == BlockItemAST::blocktype_t::STMT && ((StmtAST*)(ptr->content.get()))->st == StmtAST::stmttype_t::RETURN) {
-        has_returned = true;
-      }
       ast->block_items.push_back(unique_ptr<BlockItemAST>(ptr));
-      if (has_returned) {
-        break;
-      }
     }
     $$ = ast;
   }

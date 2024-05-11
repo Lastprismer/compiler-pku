@@ -244,7 +244,6 @@ void FuncDefAST::Dump() {
   // TODO: temp
   gen.WriteBlockPrologue();
   block->Dump();
-  gen.WriteFuncEpilogue();
 }
 
 #pragma endregion
@@ -353,6 +352,8 @@ void StmtAST::Dump() {
     auto ee = dynamic_cast<ExpAST*>(exp.get());
     // 设置返回值
     gen.functionRetInfo = ee->thisRet;
+
+    gen.WriteFuncEpilogue();
   } else if (st == stmttype_t::expr) {
     // 不记录值
     exp->Dump();
@@ -363,6 +364,7 @@ void StmtAST::Dump() {
   } else if (st == stmttype_t::nullexp) {
   } else if (st == stmttype_t::nullret) {
     gen.functionRetInfo = RetInfo();
+    gen.WriteFuncEpilogue();
   }
 }
 
