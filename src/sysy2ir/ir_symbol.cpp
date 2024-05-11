@@ -1,28 +1,31 @@
-#include "ir_symtable.h"
+#include "ir_symbol.h"
 
 namespace ir {
 
 #pragma region Symbol Table
 
 SymbolTableEntry::SymbolTableEntry()
-    : symbol_type(SymbolType::UNUSED), var_type(VarType::UNUSED) {}
+    : symbol_type(SymbolType::UNUSED), var_type(VarType::UNUSED), layer(-1) {}
 
 SymbolTableEntry::SymbolTableEntry(SymbolType _stype,
                                    VarType _vtype,
                                    string _var_name,
-                                   int _const_value)
+                                   int _const_value,
+                                   int ly)
     : symbol_type(_stype),
       var_type(_vtype),
       var_name(_var_name),
-      value(_const_value) {}
+      value(_const_value),
+      layer(ly) {}
 
 SymbolTableEntry::SymbolTableEntry(SymbolType _stype,
                                    VarType _vtype,
-                                   string _var_name)
-    : symbol_type(_stype), var_type(_vtype), var_name(_var_name) {}
+                                   string _var_name,
+                                   int ly)
+    : symbol_type(_stype), var_type(_vtype), var_name(_var_name), layer(ly) {}
 
 string SymbolTableEntry::GetAllocName() const {
-  return "@" + var_name;
+  return "@" + var_name + '_' + std::to_string(layer);
 }
 
 string SymbolTableEntry::GetAllocInst() const {
@@ -81,29 +84,31 @@ string SymbolTableEntry::GetStoreInst(int imm) const {
   }
 }
 
-SymbolTable::SymbolTable() {
-  table = map<string, SymbolTableEntry>();
-  dproc = DeclaimProcessor();
-}
+SymbolTable::SymbolTable(int ly) : table(), layer(ly), parent(nullptr) {}
 
-SymbolTableEntry& SymbolTable::getEntry(string _symbol_name) {
-  if (table.count(_symbol_name) == 1) {
-    return table[_symbol_name];
+bool SymbolTable::TryGetEntry(string symbol_name, SymbolTableEntry& out) const {
+  if (table.find(symbol_name) != table.end()) {
+    out = table.at(symbol_name);
+    return true;
   }
-  cerr << "symbol table: key not in table:" << _symbol_name << endl;
-  assert(false);
+  return false;
 }
 
-void SymbolTable::insertEntry(SymbolTableEntry entry) {
-  if (table.count(entry.var_name) > 0) {
+void SymbolTable::InsertEntry(const SymbolTableEntry& entry) {
+  if (table.find(entry.var_name) != table.end()) {
     cerr << "Symbol Table insert error: symbol with name \"" << entry.var_name
          << "\" has already inserted in the table. It will be overwritten by "
             "default"
          << endl;
     table[entry.var_name] = entry;
+    return;
   }
   // do actual insert
   table.emplace(make_pair(entry.var_name, entry));
+}
+
+void SymbolTable::ClearTable() {
+  table.clear();
 }
 
 #pragma endregion
@@ -127,18 +132,6 @@ const bool& BaseProcessor::IsEnabled() {
 #pragma endregion
 
 #pragma region DeclaimProcessor
-
-DeclaimProcessor& SymbolTable::getDProc() {
-  return dproc;
-}
-
-AssignmentProcessor& SymbolTable::getAProc() {
-  return aproc;
-}
-
-void SymbolTable::clearTable() {
-  table.clear();
-}
 
 DeclaimProcessor::DeclaimProcessor()
     : BaseProcessor(),
@@ -164,14 +157,15 @@ SymbolTableEntry DeclaimProcessor::GenerateConstEntry(string var_name,
                                                       int value) {
   assert(IsEnabled() && _current_symbol_type == SymbolType::CONST &&
          _current_var_type != VarType::UNUSED);
-  return SymbolTableEntry(SymbolType::CONST, _current_var_type, var_name,
-                          value);
+  return SymbolTableEntry(SymbolType::CONST, _current_var_type, var_name, value,
+                          manager->currentTable->layer);
 }
 
 SymbolTableEntry DeclaimProcessor::GenerateVarEntry(string var_name) {
   assert(IsEnabled() && _current_symbol_type != SymbolType::UNUSED &&
          _current_var_type != VarType::UNUSED);
-  return SymbolTableEntry(_current_symbol_type, _current_var_type, var_name);
+  return SymbolTableEntry(_current_symbol_type, _current_var_type, var_name,
+                          manager->currentTable->layer);
 }
 
 #pragma endregion
@@ -184,6 +178,48 @@ void AssignmentProcessor::SetCurrentVar(const string& var_name) {
 
 const string& AssignmentProcessor::GetCurrentVar() const {
   return current_var_name;
+}
+
+SymbolManager::SymbolManager() : dproc(), aproc(), RootTable(0) {
+  currentTable = &RootTable;
+  dproc.manager = this;
+  aproc.manager = this;
+}
+
+DeclaimProcessor& SymbolManager::getDProc() {
+  return dproc;
+}
+
+AssignmentProcessor& SymbolManager::getAProc() {
+  return aproc;
+}
+
+const SymbolTableEntry SymbolManager::getEntry(string symbol_name) {
+  SymbolTableEntry entry;
+  SymbolTable* search = currentTable;
+  while (search != nullptr) {
+    if (search->TryGetEntry(symbol_name, entry))
+      return entry;
+    search = search->parent;
+  }
+  cerr << "SymbolManager: don't find symbol with name " << symbol_name << endl;
+  assert(false);
+}
+
+void SymbolManager::InsertEntry(SymbolTableEntry entry) {
+  currentTable->InsertEntry(entry);
+}
+
+void SymbolManager::PushScope() {
+  SymbolTable* tmp = new SymbolTable(currentTable->layer + 1);
+  tmp->parent = currentTable;
+  currentTable = tmp;
+}
+
+void SymbolManager::PopScope() {
+  SymbolTable* tmp = currentTable;
+  currentTable = currentTable->parent;
+  delete tmp;
 }
 
 }  // namespace ir

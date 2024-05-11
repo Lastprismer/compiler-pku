@@ -6,7 +6,9 @@
 #include <string>
 
 namespace ir {
-using namespace std;
+using std::cerr, std::endl;
+using std::string, std::map, std::stringstream;
+class SymbolManager;
 
 enum class SymbolType { UNUSED, CONST, VAR };
 enum class VarType { UNUSED, INT };
@@ -19,12 +21,17 @@ struct SymbolTableEntry {
   string var_name;
 
   int value;
+  int layer;
   SymbolTableEntry();
   SymbolTableEntry(SymbolType _stype,
                    VarType _vtype,
                    string _var_name,
-                   int _value);
-  SymbolTableEntry(SymbolType _stype, VarType _vtype, string _var_name);
+                   int _value,
+                   int layer);
+  SymbolTableEntry(SymbolType _stype,
+                   VarType _vtype,
+                   string _var_name,
+                   int layer);
   // @ + name
   string GetAllocName() const;
   // 声明的指令
@@ -41,6 +48,7 @@ class BaseProcessor {
   bool _enable;
 
  public:
+  SymbolManager* manager;
   BaseProcessor();
   void Enable();
   void Disable();
@@ -79,15 +87,42 @@ class SymbolTable {
  public:
   // 表
   map<string, SymbolTableEntry> table;
+  int layer;
+  SymbolTable(int layer);
+  // utility
+  bool TryGetEntry(string _symbol_name, SymbolTableEntry& out) const;
+  void InsertEntry(const SymbolTableEntry& entry);
+  void ClearTable();
+
+  // lv5
+  // 到父表的指针
+  // 不需要存子表
+  SymbolTable* parent;
+};
+
+class SymbolManager {
+ public:
   DeclaimProcessor dproc;
   AssignmentProcessor aproc;
-  SymbolTable();
-  // utility
-  SymbolTableEntry& getEntry(string _symbol_name);
-  void insertEntry(SymbolTableEntry entry);
+
+  // lv5
+  // 根表
+  SymbolTable RootTable;
+  // 当前的表
+  SymbolTable* currentTable;
+
+  SymbolManager();
+
   DeclaimProcessor& getDProc();
   AssignmentProcessor& getAProc();
-  void clearTable();
+  // 递归从当前的表向根表查询
+  const SymbolTableEntry getEntry(string _symbol_name);
+  // 向当前的表插入
+  void InsertEntry(SymbolTableEntry entry);
+  // 推入一个新表
+  void PushScope();
+  // 弹出一个表
+  void PopScope();
 };
 
 }  // namespace ir

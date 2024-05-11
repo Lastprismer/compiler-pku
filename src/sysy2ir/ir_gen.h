@@ -6,13 +6,12 @@
 #include <iostream>
 #include <sstream>
 #include <string>
-#include "ir_symtable.h"
+#include "ir_symbol.h"
 #include "ir_util.h"
 #include "output_setting.h"
 
 namespace ir {
 // 栈内元素类型
-enum class NodeTag { UNUSED, SYMBOL, IMM };
 
 // Tagged Enums
 struct RetInfo {
@@ -40,8 +39,8 @@ class IRGenerator {
   string function_name;
   string return_type;
   GenSettings setting;
-  SymbolTable symbol_table;
-  RetInfo FunctionRetInfo;
+  SymbolManager sbmanager;
+  RetInfo functionRetInfo;
 
   // 生成函数开头
   void WriteFuncPrologue();
@@ -69,9 +68,9 @@ class IRGenerator {
   // 输出声明变量的指令
   void WriteAllocInst(const SymbolTableEntry& entry);
   // 输出加载变量的指令，加载得到的符号节点将推入栈顶
-  const RetInfo writeLoadInst(const SymbolTableEntry& entry);
+  const RetInfo WriteLoadInst(const SymbolTableEntry& entry);
   // 输出写入变量的指令，栈顶的节点将用于写入
-  void writeStoreInst(const RetInfo& value, const SymbolTableEntry& entry);
+  void WriteStoreInst(const RetInfo& value, const SymbolTableEntry& entry);
 
 #pragma endregion
 

@@ -218,20 +218,17 @@ FuncType
 
 // Block         ::= "{" {BlockItem} "}";
 // |
-// Block     ::= "{" BlockItem BlockList "}";
+// Block     ::= "{" BlockList "}";
 // BlockList  ::= BlockItem BlockList | epsilon
 Block
-  : '{' BlockItem BlockList '}' {
+  : '{' BlockList '}' {
     auto ast = new BlockAST();
 
     // 防止一个块内多个return
     bool has_returned = false;
 
-    // 插入开头item
-    ast->block_items.push_back(unique_ptr<BlockItemAST>((BlockItemAST*)$2));
-
-    // 插入剩余item
-    auto list = unique_ptr<BlockListUnit>((BlockListUnit*)$3);
+    // 插入item
+    auto list = unique_ptr<BlockListUnit>((BlockListUnit*)$2);
     for (auto it = list->block_items.rbegin(); it != list->block_items.rend(); ++it) {
       auto ptr = *it;
       if (ptr->bt == BlockItemAST::blocktype_t::STMT && ((StmtAST*)(ptr->content.get()))->st == StmtAST::stmttype_t::RETURN) {
@@ -292,6 +289,28 @@ Stmt
     ast->st = StmtAST::stmttype_t::CALC_LVAL;
     ast->lval = unique_ptr<BaseAST>($1);
     ast->exp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  | Block {
+    auto ast = new StmtAST();
+    ast->st = StmtAST::stmttype_t::block;
+    ast->blk = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | Exp ';' {
+    auto ast = new StmtAST();
+    ast->st = StmtAST::stmttype_t::expr;
+    ast->exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | ';' {
+    auto ast = new StmtAST();
+    ast->st = StmtAST::stmttype_t::nullexp;
+    $$ = ast;
+  }
+  | RETURN ';' {
+    auto ast = new StmtAST();
+    ast->st = StmtAST::stmttype_t::nullret;
     $$ = ast;
   }
   ;

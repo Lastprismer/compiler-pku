@@ -18,14 +18,13 @@ const string& RetInfo::GetSym() const {
   return name;
 }
 
-IRGenerator::IRGenerator() {
+IRGenerator::IRGenerator() : sbmanager() {
   setting.setOs(cout).setIndent(0);
 
   variable_pool = 0;
   function_name = "";
   return_type = "";
-  symbol_table = SymbolTable();
-  FunctionRetInfo = RetInfo();
+  functionRetInfo = RetInfo();
 }
 
 IRGenerator& IRGenerator::getInstance() {
@@ -40,7 +39,7 @@ void IRGenerator::WriteFuncPrologue() {
 
 void IRGenerator::WriteFuncEpilogue() {
   ostream& os = setting.getOs();
-  os << setting.getIndentStr() << "ret " << parseRetInfo(FunctionRetInfo)
+  os << setting.getIndentStr() << "ret " << parseRetInfo(functionRetInfo)
      << "\n"
      << "}" << endl;
   return;
@@ -102,14 +101,14 @@ void IRGenerator::WriteAllocInst(const SymbolTableEntry& entry) {
   os << setting.getIndentStr() << entry.GetAllocInst() << endl;
 }
 
-const RetInfo IRGenerator::writeLoadInst(const SymbolTableEntry& entry) {
+const RetInfo IRGenerator::WriteLoadInst(const SymbolTableEntry& entry) {
   ostream& os = setting.getOs();
   const string newSymbolName = getSymbolName(registerNewSymbol());
   os << setting.getIndentStr() << entry.GetLoadInst(newSymbolName) << endl;
   return RetInfo(newSymbolName);
 }
 
-void IRGenerator::writeStoreInst(const RetInfo& value,
+void IRGenerator::WriteStoreInst(const RetInfo& value,
                                  const SymbolTableEntry& entry) {
   ostream& os = setting.getOs();
 

@@ -238,10 +238,11 @@ Stmt          ::= LVal "=" Exp ";"
 */
 class StmtAST : public BaseAST {
  public:
-  enum stmttype_t { CALC_LVAL, RETURN };
+  enum stmttype_t { CALC_LVAL, RETURN, expr, block, nullexp, nullret };
   stmttype_t st;
   unique_ptr<BaseAST> lval;
   unique_ptr<BaseAST> exp;
+  unique_ptr<BaseAST> blk;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;

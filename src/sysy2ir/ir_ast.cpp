@@ -53,8 +53,7 @@ void ConstDeclAST::Print(ostream& os, int indent) const {
 }
 
 void ConstDeclAST::Dump() {
-  DeclaimProcessor& processor =
-      IRGenerator::getInstance().symbol_table.getDProc();
+  DeclaimProcessor& processor = IRGenerator::getInstance().sbmanager.getDProc();
   processor.Enable();
   processor.SetSymbolType(SymbolType::CONST);
   btype->Dump();
@@ -86,7 +85,7 @@ void BTypeAST::Print(ostream& os, int indent) const {
 }
 
 void BTypeAST::Dump() {
-  IRGenerator::getInstance().symbol_table.dproc.SetVarType(VarType::INT);
+  IRGenerator::getInstance().sbmanager.dproc.SetVarType(VarType::INT);
 }
 
 #pragma endregion
@@ -108,10 +107,10 @@ void ConstDefAST::Dump() {
   auto cv = dynamic_cast<ConstInitValAST*>(const_init_val.get());
 
   // 取值加入符号表
-  DeclaimProcessor& pcs = gen.symbol_table.getDProc();
+  DeclaimProcessor& pcs = gen.sbmanager.getDProc();
   SymbolTableEntry entry =
       pcs.GenerateConstEntry(var_name, cv->thisRet.GetValue());
-  gen.symbol_table.insertEntry(entry);
+  gen.sbmanager.InsertEntry(entry);
 }
 
 #pragma endregion
@@ -147,8 +146,7 @@ void VarDeclAST::Print(ostream& os, int indent) const {
 }
 
 void VarDeclAST::Dump() {
-  DeclaimProcessor& processor =
-      IRGenerator::getInstance().symbol_table.getDProc();
+  DeclaimProcessor& processor = IRGenerator::getInstance().sbmanager.getDProc();
   processor.Enable();
   processor.SetSymbolType(SymbolType::VAR);
   btype->Dump();
@@ -188,19 +186,19 @@ void VarDefAST::Print(ostream& os, int indent) const {
 
 void VarDefAST::Dump() {
   IRGenerator& gen = IRGenerator::getInstance();
-  DeclaimProcessor& pcs = gen.symbol_table.getDProc();
+  DeclaimProcessor& pcs = gen.sbmanager.getDProc();
 
   SymbolTableEntry entry = pcs.GenerateVarEntry(var_name);
   gen.WriteAllocInst(entry);
-  gen.symbol_table.insertEntry(entry);
+  gen.sbmanager.InsertEntry(entry);
   // 如果有初始化
   if (init_with_val) {
     // 类似常数的定义
     init_val->Dump();
     auto iv = dynamic_cast<InitValAST*>(init_val.get());
     // 赋值，加入符号表
-    SymbolTableEntry s_entry = gen.symbol_table.getEntry(entry.var_name);
-    gen.writeStoreInst(iv->thisRet, s_entry);
+    SymbolTableEntry s_entry = gen.sbmanager.getEntry(entry.var_name);
+    gen.WriteStoreInst(iv->thisRet, s_entry);
   }
 }
 
@@ -243,6 +241,8 @@ void FuncDefAST::Dump() {
   gen.function_name = func_name;
 
   gen.WriteFuncPrologue();
+  // TODO: temp
+  gen.WriteBlockPrologue();
   block->Dump();
   gen.WriteFuncEpilogue();
 }
@@ -276,7 +276,7 @@ void BlockAST::Print(ostream& os, int indent) const {
 
 void BlockAST::Dump() {
   IRGenerator& gen = IRGenerator::getInstance();
-  gen.WriteBlockPrologue();
+  // gen.WriteBlockPrologue();
   for (auto it = block_items.begin(); it != block_items.end(); it++) {
     (*it)->Dump();
   }
@@ -331,10 +331,11 @@ void StmtAST::Print(ostream& os, int indent) const {
   os << " }," << endl;
 }
 
+// TODO
 void StmtAST::Dump() {
   IRGenerator& gen = IRGenerator::getInstance();
   if (st == stmttype_t::CALC_LVAL) {
-    AssignmentProcessor& aproc = gen.symbol_table.getAProc();
+    AssignmentProcessor& aproc = gen.sbmanager.getAProc();
     // 记录左值
     aproc.Enable();
     lval->Dump();
@@ -345,13 +346,23 @@ void StmtAST::Dump() {
     auto ee = dynamic_cast<ExpAST*>(exp.get());
 
     // 赋值
-    gen.writeStoreInst(ee->thisRet,
-                       gen.symbol_table.getEntry(aproc.GetCurrentVar()));
+    gen.WriteStoreInst(ee->thisRet,
+                       gen.sbmanager.getEntry(aproc.GetCurrentVar()));
   } else if (st == stmttype_t::RETURN) {
     exp->Dump();
     auto ee = dynamic_cast<ExpAST*>(exp.get());
     // 设置返回值
-    gen.FunctionRetInfo = ee->thisRet;
+    gen.functionRetInfo = ee->thisRet;
+  } else if (st == stmttype_t::expr) {
+    // 不记录值
+    exp->Dump();
+  } else if (st == block) {
+    gen.sbmanager.PushScope();
+    blk->Dump();
+    gen.sbmanager.PopScope();
+  } else if (st == stmttype_t::nullexp) {
+  } else if (st == stmttype_t::nullret) {
+    gen.functionRetInfo = RetInfo();
   }
 }
 
@@ -384,7 +395,8 @@ void LValAST::Print(ostream& os, int indent) const {
 void LValAST::Dump() {
   IRGenerator& gen = IRGenerator::getInstance();
   // 判断变量类型
-  SymbolTableEntry& entry = gen.symbol_table.getEntry(var_name);
+  SymbolTableEntry entry = gen.sbmanager.getEntry(var_name);
+
   if (entry.symbol_type == SymbolType::CONST) {
     // const只会是右值
     if (entry.var_type == VarType::INT) {
@@ -398,13 +410,13 @@ void LValAST::Dump() {
     if (entry.var_type == VarType::INT) {
       // var int
       // 判断是左值还是右值
-      if (gen.symbol_table.aproc.IsEnabled()) {
+      if (gen.sbmanager.aproc.IsEnabled()) {
         // 为左值，设置aproc处理当前符号
-        AssignmentProcessor& aproc = gen.symbol_table.getAProc();
+        AssignmentProcessor& aproc = gen.sbmanager.getAProc();
         aproc.SetCurrentVar(var_name);
       } else {
         // 为右值，获取其临时符号
-        thisRet = gen.writeLoadInst(entry);
+        thisRet = gen.WriteLoadInst(entry);
       }
     } else {
       // var arr

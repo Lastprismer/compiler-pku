@@ -14,27 +14,27 @@ string sysy2ir(const char* input, const char* output, bool output2file) {
   auto ret = yyparse(ast);
   assert(!ret);
 
-  stringstream out, dp;
+  stringstream out, cou;
 
-  IRGenerator::getInstance().setting.setIndent(0).setOs(dp);
+  IRGenerator::getInstance().setting.setIndent(0).setOs(cou);
 
-  ast->Print(out, 0);
+  // ast->Print(cout, 0);
   ast->Dump();
 
   if (false) {
     cout << "Structure: \n" << out.str() << endl;
-    cout << "IR code:\n" << dp.str() << endl;
+    cout << "IR code:\n" << cou.str() << endl;
   } else {
     // 输出到文件
     ofstream outfile(output);
     if (outfile.is_open()) {
-      outfile << dp.str();
+      outfile << cou.str();
       outfile.close();
     } else {
       cerr << "无法打开文件：" << output << endl;
     }
   }
-  return dp.str();
+  return cou.str();
 }
 
 }  // namespace ir
