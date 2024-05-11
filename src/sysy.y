@@ -45,7 +45,7 @@ using namespace std;
 
 // 非终结符的类型定义
 %type <ast_val> FuncDef FuncType Block Stmt
-%type <ast_val> Exp PrimaryExp Number UnaryExp UnaryOp MulExp AddExp RelExp EqExp LAndExp LOrExp
+%type <ast_val> Exp PrimaryExp Number UnaryExp MulExp AddExp RelExp EqExp LAndExp LOrExp
 // lv4-const
 %type <ast_val> Decl ConstDecl BType ConstDef ConstDeclList ConstInitVal LVal BlockList BlockItem ConstExp
 %type <ast_val> VarDecl VarDef InitVal VarDeclList
@@ -276,7 +276,9 @@ BlockItem
 
 /*
 Stmt          ::= LVal "=" Exp ";"
-                | "return" Exp ";";
+                | [Exp] ";"
+                | Block
+                | "return" [Exp] ";";
 */
 Stmt
   : RETURN Exp ';' {
@@ -344,41 +346,38 @@ Number
   }
   ;
 
-// UnaryExp    ::= PrimaryExp | UnaryOp UnaryExp;
+/*
+UnaryExp    ::= PrimaryExp
+              | "+" UnaryExp
+              | "-" UnaryExp
+              | "!" UnaryExp;
+*/
 UnaryExp
   : PrimaryExp {
     auto ast = new UnaryExpAST();
     ast->uex = UnaryExpAST::uex_t::Primary;
-    ast->prim = unique_ptr<BaseAST>($1);
-    ast->uop = nullptr;
-    ast->uexp = nullptr;
+    ast->exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
-  | UnaryOp UnaryExp {
+  | '+' UnaryExp {
     auto ast = new UnaryExpAST();
-    ast->uex = UnaryExpAST::uex_t::Unary;
-    ast->prim = nullptr;
-    ast->uop = unique_ptr<BaseAST>($1);
-    ast->uexp = unique_ptr<BaseAST>($2);
+    ast->uex = UnaryExpAST::uex_t::OPUnary;
+    ast->uop = UnaryExpAST::uop_t::Pos;
+    ast->exp = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
-  ;
-
-// UnaryOp     ::= "+" | "-" | "!";
-UnaryOp
-  : '+' {
-    auto ast = new UnaryOPAST();
-    ast->uop = UnaryOPAST::uop_t::Pos;
+  | '-' UnaryExp {
+    auto ast = new UnaryExpAST();
+    ast->uex = UnaryExpAST::uex_t::OPUnary;
+    ast->uop = UnaryExpAST::uop_t::Neg;
+    ast->exp = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
-  | '-' {
-    auto ast = new UnaryOPAST();
-    ast->uop = UnaryOPAST::uop_t::Neg;
-    $$ = ast;
-  }
-  | '!' {
-    auto ast = new UnaryOPAST();
-    ast->uop = UnaryOPAST::uop_t::Not;
+  | '!' UnaryExp {
+    auto ast = new UnaryExpAST();
+    ast->uex = UnaryExpAST::uex_t::OPUnary;
+    ast->uop = UnaryExpAST::uop_t::Not;
+    ast->exp = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
   ;

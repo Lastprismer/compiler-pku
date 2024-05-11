@@ -16,22 +16,6 @@ namespace riscv {
 enum NodeTag { reg, imm };
 typedef koopa_raw_binary_op_t OpType;
 
-#pragma region Node
-struct Node {
-  NodeTag tag;
-  union {
-    Reg reg;
-    int imm;
-  } content;
-  Node();
-  Node(int i);
-  Node(Reg reg);
-  Node(const Node& n);
-  Node(Node&& n);
-};
-
-#pragma endregion
-
 class BaseModule {
  private:
   bool active;

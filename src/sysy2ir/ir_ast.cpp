@@ -327,8 +327,8 @@ void StmtAST::Print(ostream& os, int indent) const {
 }
 
 void StmtAST::Dump() {
+  IRGenerator& gen = IRGenerator::getInstance();
   if (st == stmttype_t::CALC_LVAL) {
-    IRGenerator& gen = IRGenerator::getInstance();
     AssignmentProcessor& aproc = gen.symbol_table.getAProc();
     aproc.Enable();
     lval->Dump();
@@ -338,6 +338,9 @@ void StmtAST::Dump() {
     gen.writeStoreInst(gen.symbol_table.getEntry(aproc.GetCurrentVar()));
   } else {
     exp->Dump();
+    auto ee = dynamic_cast<ExpAST*>(exp.get());
+    // 设置返回值
+    gen.FunctionRetInfo = ee->thisRet;
   }
 }
 
@@ -355,6 +358,8 @@ void ExpAST::Print(ostream& os, int indent) const {
 
 void ExpAST::Dump() {
   loexp->Dump();
+  auto le = dynamic_cast<LOrExpAST*>(loexp.get());
+  thisRet = le->thisRet;
 }
 
 #pragma endregion
@@ -413,6 +418,23 @@ void PrimaryExpAST::Print(ostream& os, int indent) const {
 
 void PrimaryExpAST::Dump() {
   content->Dump();
+
+  switch (pt) {
+    case primary_exp_type_t::Brackets: {
+      auto ee = dynamic_cast<ExpAST*>(content.get());
+      thisRet = ee->thisRet;
+    } break;
+    case primary_exp_type_t::LVal: {
+      // do nothing
+    }
+    case primary_exp_type_t::Number: {
+      auto nb = dynamic_cast<NumberAST*>(content.get());
+      thisRet = RetInfo(nb->int_const);
+    } break;
+
+    default:
+      break;
+  }
 }
 
 const char* PrimaryExpAST::type() const {
@@ -438,7 +460,7 @@ void NumberAST::Print(ostream& os, int indent) const {
 }
 
 void NumberAST::Dump() {
-  IRGenerator::getInstance().pushImm(int_const);
+  // do nothing, waiting for PrimaryExpAST to actively fetch imm
 }
 
 #pragma endregion
@@ -452,10 +474,11 @@ void UnaryExpAST::Print(ostream& os, int indent) const {
   os << "type: " << type() << endl;
 
   if (uex == uex_t::Primary) {
-    prim->Print(os, indent + 1);
+    exp->Print(os, indent + 1);
   } else {
-    uop->Print(os, indent + 1);
-    uexp->Print(os, indent + 1);
+    make_indent(os, indent + 1);
+    os << "op: " << uop << endl;
+    exp->Print(os, indent + 1);
   }
 
   make_indent(os, indent);
@@ -463,16 +486,29 @@ void UnaryExpAST::Print(ostream& os, int indent) const {
 }
 
 void UnaryExpAST::Dump() {
+  exp->Dump();
+  IRGenerator& gen = IRGenerator::getInstance();
+
   switch (uex) {
-    case Unary:
-      uexp->Dump();
-      uop->Dump();
-      break;
-    case Primary:
-      prim->Dump();
-      break;
+    case Primary: {
+      auto pr = dynamic_cast<PrimaryExpAST*>(exp.get());
+      thisRet = pr->thisRet;
+    } break;
+    case OPUnary: {
+      auto ex = dynamic_cast<UnaryExpAST*>(exp.get());
+      switch (uop) {
+        case uop_t::Pos:
+          thisRet = ex->thisRet;
+          break;
+        case uop_t::Neg:
+          thisRet = gen.WriteUnaryInst(ex->thisRet, OpID::UNARY_NEG);
+          break;
+        case uop_t::Not:
+          thisRet = gen.WriteUnaryInst(ex->thisRet, OpID::UNARY_NOT);
+          break;
+      }
+    } break;
     default:
-      assert(false);
       break;
   }
 }
@@ -481,47 +517,8 @@ const char* UnaryExpAST::type() const {
   switch (uex) {
     case Primary:
       return "PrimaryExp";
-    case Unary:
+    case OPUnary:
       return "UnaryOp UnaryExp";
-    default:
-      assert(false);
-  }
-}
-
-#pragma endregion
-
-#pragma region UnaryOPAST
-
-void UnaryOPAST::Print(ostream& os, int indent) const {
-  make_indent(os, indent);
-  os << "UnaryOPAST { " << op_name() << " } " << endl;
-}
-
-void UnaryOPAST::Dump() {
-  IRGenerator& gen = IRGenerator::getInstance();
-  switch (uop) {
-    case uop_t::Pos:
-      gen.writeUnaryInst(OpID::UNARY_POS);
-      break;
-    case uop_t::Neg:
-      gen.writeUnaryInst(OpID::UNARY_NEG);
-      break;
-    case uop_t::Not:
-      gen.writeUnaryInst(OpID::UNARY_NOT);
-      break;
-    default:
-      assert(false);
-  }
-}
-
-const char* UnaryOPAST::op_name() const {
-  switch (uop) {
-    case uop_t::Pos:
-      return "+";
-    case uop_t::Neg:
-      return "-";
-    case uop_t::Not:
-      return "!";
     default:
       assert(false);
   }
@@ -555,22 +552,28 @@ void MulExpAST::Dump() {
   if (mex == mex_t::MulOPUnary) {
     mexp->Dump();
     uexp->Dump();
+
+    auto me = dynamic_cast<MulExpAST*>(mexp.get());
+    auto ue = dynamic_cast<UnaryExpAST*>(uexp.get());
+
     IRGenerator& gen = IRGenerator::getInstance();
     switch (mop) {
       case mop_t::Mul:
-        gen.writeBinaryInst(OpID::BI_MUL);
+        thisRet = gen.WriteBinaryInst(me->thisRet, ue->thisRet, OpID::BI_MUL);
         break;
       case mop_t::Div:
-        gen.writeBinaryInst(OpID::BI_DIV);
+        thisRet = gen.WriteBinaryInst(me->thisRet, ue->thisRet, OpID::BI_DIV);
         break;
       case mop_t::Mod:
-        gen.writeBinaryInst(OpID::BI_MOD);
+        thisRet = gen.WriteBinaryInst(me->thisRet, ue->thisRet, OpID::BI_MOD);
         break;
       default:
         assert(false);
     }
   } else {
     uexp->Dump();
+    auto ue = dynamic_cast<UnaryExpAST*>(uexp.get());
+    thisRet = ue->thisRet;
   }
 }
 
@@ -624,19 +627,24 @@ void AddExpAST::Dump() {
   if (aex == aex_t::AddOPMul) {
     aexp->Dump();
     mexp->Dump();
+    auto ae = dynamic_cast<AddExpAST*>(aexp.get());
+    auto me = dynamic_cast<MulExpAST*>(mexp.get());
+
     IRGenerator& gen = IRGenerator::getInstance();
     switch (aop) {
       case aop_t::Add:
-        gen.writeBinaryInst(OpID::BI_ADD);
+        thisRet = gen.WriteBinaryInst(ae->thisRet, me->thisRet, OpID::BI_ADD);
         break;
       case aop_t::Sub:
-        gen.writeBinaryInst(OpID::BI_SUB);
+        thisRet = gen.WriteBinaryInst(ae->thisRet, me->thisRet, OpID::BI_SUB);
         break;
       default:
         break;
     }
   } else {
     mexp->Dump();
+    auto me = dynamic_cast<MulExpAST*>(mexp.get());
+    thisRet = me->thisRet;
   }
 }
 
@@ -686,19 +694,24 @@ void RelExpAST::Dump() {
   if (rex == rex_t::RelOPAdd) {
     rexp->Dump();
     aexp->Dump();
+
     IRGenerator& gen = IRGenerator::getInstance();
+
+    auto rel = dynamic_cast<RelExpAST*>(rexp.get());
+    auto ae = dynamic_cast<AddExpAST*>(aexp.get());
+
     switch (rop) {
       case rop_t::LessThan:
-        gen.writeBinaryInst(OpID::LG_LT);
+        thisRet = gen.WriteBinaryInst(rel->thisRet, ae->thisRet, OpID::LG_LT);
         break;
       case rop_t::LessEqual:
-        gen.writeBinaryInst(OpID::LG_LE);
+        thisRet = gen.WriteBinaryInst(rel->thisRet, ae->thisRet, OpID::LG_LE);
         break;
       case rop_t::GreaterThan:
-        gen.writeBinaryInst(OpID::LG_GT);
+        thisRet = gen.WriteBinaryInst(rel->thisRet, ae->thisRet, OpID::LG_GT);
         break;
       case rop_t::GreaterEqual:
-        gen.writeBinaryInst(OpID::LG_GE);
+        thisRet = gen.WriteBinaryInst(rel->thisRet, ae->thisRet, OpID::LG_GE);
         break;
       default:
         assert(false);
@@ -706,6 +719,8 @@ void RelExpAST::Dump() {
     }
   } else {
     aexp->Dump();
+    auto ae = dynamic_cast<AddExpAST*>(aexp.get());
+    thisRet = ae->thisRet;
   }
 }
 
@@ -761,19 +776,26 @@ void EqExpAST::Dump() {
   if (eex == eex_t::EqOPRel) {
     eexp->Dump();
     rexp->Dump();
+    auto eq = dynamic_cast<EqExpAST*>(eexp.get());
+    auto rel = dynamic_cast<RelExpAST*>(rexp.get());
+
     IRGenerator& gen = IRGenerator::getInstance();
+
     switch (eop) {
       case eop_t::Equal:
-        gen.writeBinaryInst(OpID::LG_EQ);
+        thisRet = gen.WriteBinaryInst(eq->thisRet, rel->thisRet, OpID::LG_EQ);
         break;
       case eop_t::NotEqual:
-        gen.writeBinaryInst(OpID::LG_NEQ);
+        thisRet = gen.WriteBinaryInst(eq->thisRet, rel->thisRet, OpID::LG_NEQ);
         break;
       default:
+        assert(false);
         break;
     }
   } else {
     rexp->Dump();
+    auto rel = dynamic_cast<RelExpAST*>(rexp.get());
+    thisRet = rel->thisRet;
   }
 }
 
@@ -825,9 +847,16 @@ void LAndExpAST::Dump() {
   if (laex == laex_t::LAOPEq) {
     laexp->Dump();
     eexp->Dump();
-    IRGenerator::getInstance().writeLogicInst(OpID::LG_AND);
+
+    auto la = dynamic_cast<LAndExpAST*>(laexp.get());
+    auto eq = dynamic_cast<EqExpAST*>(eexp.get());
+    thisRet = IRGenerator::getInstance().WriteLogicInst(
+        la->thisRet, eq->thisRet, OpID::LG_AND);
+
   } else {
     eexp->Dump();
+    auto ee = dynamic_cast<EqExpAST*>(eexp.get());
+    thisRet = ee->thisRet;
   }
 }
 
@@ -870,9 +899,16 @@ void LOrExpAST::Dump() {
   if (loex == loex_t::LOOPLA) {
     loexp->Dump();
     laexp->Dump();
-    IRGenerator::getInstance().writeLogicInst(OpID::LG_OR);
+
+    auto la = dynamic_cast<LAndExpAST*>(laexp.get());
+    auto lo = dynamic_cast<LOrExpAST*>(loexp.get());
+    thisRet = IRGenerator::getInstance().WriteLogicInst(
+        lo->thisRet, la->thisRet, OpID::LG_OR);
+
   } else {
     laexp->Dump();
+    auto la = dynamic_cast<LAndExpAST*>(laexp.get());
+    thisRet = la->thisRet;
   }
 }
 
@@ -901,6 +937,10 @@ void ConstExpAST::Print(ostream& os, int indent) const {
 
 void ConstExpAST::Dump() {
   exp->Dump();
+  auto ptr = dynamic_cast<ExpAST*>(exp.get());
+  RetInfo info = ptr->thisRet;
+  assert(info.ty == info.ty_int);
+  thisRet = info;
 }
 
 #pragma endregion

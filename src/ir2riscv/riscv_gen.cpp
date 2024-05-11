@@ -2,24 +2,6 @@
 
 namespace riscv {
 
-#pragma region Node
-
-Node::Node() {}
-
-Node::Node(int i) : tag(NodeTag::imm) {
-  content.imm = i;
-}
-
-Node::Node::Node(Reg reg) : tag(NodeTag::reg) {
-  content.reg = reg;
-}
-
-Node::Node(const Node& n) : tag(n.tag), content(n.content) {}
-
-Node::Node(Node&& n) : tag(n.tag), content(n.content) {}
-
-#pragma endregion
-
 #pragma region BaseModule
 
 BaseModule::BaseModule() : active(false) {}

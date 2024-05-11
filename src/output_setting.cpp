@@ -18,6 +18,6 @@ ostream& GenSettings::getOs() {
   return *os;
 }
 
-string GenSettings::getIndentStr() {
+const string GenSettings::getIndentStr() {
   return string(indent, ' ');
 }

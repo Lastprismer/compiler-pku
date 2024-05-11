@@ -22,7 +22,7 @@ string sysy2ir(const char* input, const char* output, bool output2file) {
   ast->Dump();
 
   if (false) {
-    // cout << "Structure: \n" << out.str() << endl;
+    cout << "Structure: \n" << out.str() << endl;
     cout << "IR code:\n" << dp.str() << endl;
   } else {
     // 输出到文件

@@ -14,6 +14,20 @@ namespace ir {
 // 栈内元素类型
 enum class NodeTag { UNUSED, SYMBOL, IMM };
 
+// Tagged Enums
+struct RetInfo {
+  enum RetTy { ty_int, ty_void, ty_sbl, ty_var } ty;
+  int value;
+  string name;
+  RetInfo();
+  RetInfo(int _value);
+  RetInfo(string _symbol);
+  RetInfo(int _, string _var);
+  const int& GetValue() const;
+  const string& GetSym() const;
+  const string& GetVar() const;
+};
+
 // 栈内元素
 struct Node {
   NodeTag tag;
@@ -40,6 +54,7 @@ class IRGenerator {
   deque<Node> node_stack;
   GenSettings setting;
   SymbolTable symbol_table;
+  RetInfo FunctionRetInfo;
 
   // 生成函数开头
   void writeFuncPrologue();
@@ -59,11 +74,15 @@ class IRGenerator {
 #pragma region lv3
 
   // 输入单目运算符，输出指令
-  void writeUnaryInst(OpID op);
+  const RetInfo WriteUnaryInst(const RetInfo& left, OpID op);
   // 输入双目运算符，输出指令
-  void writeBinaryInst(OpID op);
+  const RetInfo WriteBinaryInst(const RetInfo& left,
+                                const RetInfo& right,
+                                OpID op);
   // 输入逻辑运算符and or，输出指令
-  void writeLogicInst(OpID op);
+  const RetInfo WriteLogicInst(const RetInfo& left,
+                               const RetInfo& right,
+                               OpID op);
 
 #pragma endregion
 
@@ -80,9 +99,10 @@ class IRGenerator {
  private:
   int registerNewSymbol();
   string getSymbolName(const int& symbol) const;
-  void parseNode(const Node& node);
+  // 解析RetInfo
+  const string parseRetInfo(const RetInfo& info) const;
   // 计算常数表达式
-  int calcConstExpr(const Node& left, const Node& right, OpID op);
+  int calcConstExpr(const int& left, const int& right, OpID op);
 };
 
 }  // namespace ir

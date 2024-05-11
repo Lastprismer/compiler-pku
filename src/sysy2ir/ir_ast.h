@@ -12,6 +12,7 @@
 #define INDENT_LEN 4
 
 using namespace std;
+using ir::RetInfo;
 
 /*
 
@@ -32,14 +33,18 @@ FuncType      ::= "int";
 Block         ::= "{" {BlockItem} "}";
 BlockItem     ::= Decl | Stmt;
 Stmt          ::= LVal "=" Exp ";"
-                | "return" Exp ";";
+                | [Exp] ";"
+                | Block
+                | "return" [Exp] ";";
 
 Exp           ::= LOrExp;
 LVal          ::= IDENT;
 PrimaryExp    ::= "(" Exp ")" | LVal | Number;
 Number        ::= INT_CONST;
-UnaryExp      ::= PrimaryExp | UnaryOp UnaryExp;
-UnaryOp       ::= "+" | "-" | "!";
+UnaryExp      ::= PrimaryExp
+                | "+" UnaryExp
+                | "-" UnaryExp
+                | "!" UnaryExp;
 MulExp        ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;
 AddExp        ::= MulExp | AddExp ("+" | "-") MulExp;
 RelExp        ::= AddExp | RelExp ("<" | ">" | "<=" | ">=") AddExp;
@@ -161,8 +166,6 @@ class VarDefAST : public BaseAST {
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
-
- public:
 };
 
 // InitVal       ::= Exp;
@@ -227,7 +230,9 @@ class BlockItemAST : public BaseAST {
 
 /*
 Stmt          ::= LVal "=" Exp ";"
-                | "return" Exp ";";
+                | [Exp] ";"
+                | Block
+                | "return" [Exp] ";";
 */
 class StmtAST : public BaseAST {
  public:
@@ -244,6 +249,7 @@ class StmtAST : public BaseAST {
 class ExpAST : public BaseAST {
  public:
   unique_ptr<BaseAST> loexp;
+  RetInfo thisRet;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
@@ -253,6 +259,7 @@ class ExpAST : public BaseAST {
 class LValAST : public BaseAST {
  public:
   string var_name;
+  RetInfo thisRet;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
@@ -264,6 +271,7 @@ class PrimaryExpAST : public BaseAST {
   enum primary_exp_type_t { Brackets, LVal, Number };
   primary_exp_type_t pt;
   unique_ptr<BaseAST> content;
+  RetInfo thisRet;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
@@ -281,33 +289,27 @@ class NumberAST : public BaseAST {
   void Dump() override;
 };
 
-// UnaryExp    ::= PrimaryExp | UnaryOp UnaryExp;
+/*
+UnaryExp    ::= PrimaryExp
+              | "+" UnaryExp
+              | "-" UnaryExp
+              | "!" UnaryExp;
+*/
 class UnaryExpAST : public BaseAST {
  public:
-  enum uex_t { Primary, Unary };
+  enum uex_t { Primary, OPUnary };
   uex_t uex;
-  unique_ptr<BaseAST> prim;
-  unique_ptr<BaseAST> uop;
-  unique_ptr<BaseAST> uexp;
+  enum uop_t { Pos, Neg, Not };
+  uop_t uop;
+
+  unique_ptr<BaseAST> exp;
+  RetInfo thisRet;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 
  private:
   const char* type() const;
-};
-
-// UnaryOp     ::= "+" | "-" | "!";
-class UnaryOPAST : public BaseAST {
- public:
-  enum uop_t { Pos, Neg, Not };
-  uop_t uop;
-
-  void Print(ostream& os, int indent) const override;
-  void Dump() override;
-
- private:
-  const char* op_name() const;
 };
 
 // MulExp      ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;
@@ -319,6 +321,7 @@ class MulExpAST : public BaseAST {
   mop_t mop;
   unique_ptr<BaseAST> mexp;
   unique_ptr<BaseAST> uexp;
+  RetInfo thisRet;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
@@ -337,6 +340,7 @@ class AddExpAST : public BaseAST {
   aop_t aop;
   unique_ptr<BaseAST> mexp;
   unique_ptr<BaseAST> aexp;
+  RetInfo thisRet;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
@@ -355,6 +359,7 @@ class RelExpAST : public BaseAST {
   rop_t rop;
   unique_ptr<BaseAST> rexp;
   unique_ptr<BaseAST> aexp;
+  RetInfo thisRet;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
@@ -373,6 +378,7 @@ class EqExpAST : public BaseAST {
   eop_t eop;
   unique_ptr<BaseAST> eexp;
   unique_ptr<BaseAST> rexp;
+  RetInfo thisRet;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
@@ -389,6 +395,7 @@ class LAndExpAST : public BaseAST {
   laex_t laex;
   unique_ptr<BaseAST> laexp;
   unique_ptr<BaseAST> eexp;
+  RetInfo thisRet;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
@@ -404,6 +411,7 @@ class LOrExpAST : public BaseAST {
   loex_t loex;
   unique_ptr<BaseAST> laexp;
   unique_ptr<BaseAST> loexp;
+  RetInfo thisRet;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
@@ -416,6 +424,7 @@ class LOrExpAST : public BaseAST {
 class ConstExpAST : public BaseAST {
  public:
   unique_ptr<BaseAST> exp;
+  RetInfo thisRet;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
