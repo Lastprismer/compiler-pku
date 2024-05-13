@@ -31,6 +31,7 @@ void visit_slice(const koopa_raw_slice_t& slice) {
       default:
         // 我们暂时不会遇到其他内容, 于是不对其做任何处理
         assert(false);
+        break;
     }
   }
 }
@@ -95,12 +96,10 @@ void visit_value(const koopa_raw_value_t& value) {
 
 void visit_inst_int(const koopa_raw_integer_t& inst_int) {
   cerr << "NOT EXPECTED" << endl;
-  assert(false);
 }
 
 void visit_inst_alloc(const koopa_raw_value_t& value) {
   cerr << "NOT EXPECTED" << endl;
-  assert(false);
 }
 
 void visit_inst_load(const koopa_raw_value_t& inst_load) {
@@ -111,7 +110,7 @@ void visit_inst_load(const koopa_raw_value_t& inst_load) {
     smem.InstResult[inst_load] = smem.InstResult[inst_load->kind.data.load.src];
     return;
   }
-  assert(false);
+  // assert(false);
 }
 
 void visit_inst_store(const koopa_raw_value_t& inst) {
@@ -134,7 +133,6 @@ void visit_inst_store(const koopa_raw_value_t& inst) {
   } else {
     // src不应该是stack
     auto srcResult = smem.InstResult[inst_store.value];
-    cout << srcResult.ty << endl;
     src.ty = srcResult.ty;
     if (src.ty == StackMemoryModule::ValueType::reg)
       src.content.reg = srcResult.content.reg;
@@ -159,7 +157,8 @@ void visit_inst_binary(const koopa_raw_value_t& inst) {
   src.ty = StackMemoryModule::ValueType::reg;
   src.content.reg = r1;
   smem.WriteStoreInst(StackMemoryModule::StoreInfo(dst, src));
-  if (smem.InstResult.find(inst_bina.rhs) == smem.InstResult.end()) {
+  if (smem.InstResult.find(inst_bina.rhs) != smem.InstResult.end() ||
+      inst_bina.rhs->kind.tag == KOOPA_RVT_INTEGER) {  // 保存过或是立即数
     // r2是临时分配的
     gen.RegManager.releaseReg(r2);
   }
@@ -184,11 +183,11 @@ void CalcMemoryNeeded(const koopa_raw_function_t& func) {
   int allocSize = 0;
   // 遍历函数所有的bb中的所有指令
   const koopa_raw_slice_t& func_bbs = func->bbs;
-  assert(func_bbs.kind == KOOPA_RSIK_BASIC_BLOCK);
+  // assert(func_bbs.kind == KOOPA_RSIK_BASIC_BLOCK);
   for (size_t i = 0; i < func_bbs.len; ++i) {
     const koopa_raw_basic_block_t& bb =
         reinterpret_cast<koopa_raw_basic_block_t>(func_bbs.buffer[i]);
-    assert(bb->insts.kind == KOOPA_RSIK_VALUE);
+    // assert(bb->insts.kind == KOOPA_RSIK_VALUE);
 
     for (size_t j = 0; j < bb->insts.len; ++j) {
       const koopa_raw_value_t& value =
@@ -213,11 +212,13 @@ Reg GetValueResult(const koopa_raw_value_t& value) {
     smem.WriteLI(rs, value->kind.data.integer.value);
     return rs;
   }
-  assert(smem.InstResult.find(value) != smem.InstResult.end());
+  // assert(smem.InstResult.find(value) != smem.InstResult.end());
 
   StackMemoryModule::InstResultInfo info;
-  info = smem.InstResult[value];
+  info = smem.InstResult.at(value);
   if (info.ty == StackMemoryModule::ValueType::reg) {
+    cout << "will this actually run?" << endl;
+    // 还没做分配策略的
     return info.content.reg;
   } else if (info.ty == StackMemoryModule::ValueType::stack) {
     // 先读出

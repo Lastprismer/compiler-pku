@@ -219,28 +219,24 @@ void RiscvGenerator::WriteBinaInst(OpType op,
     case koopa_raw_binary_op::KOOPA_RBO_NOT_EQ:
 #pragma region neq
       neq(os, left, left, right);
-      RegManager.releaseReg(right);
       break;
 #pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_EQ:
 #pragma region eq
       eq(os, left, left, right);
-      RegManager.releaseReg(right);
       break;
 #pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_GT:
 #pragma region sgt
       sgt(os, left, left, right);
-      RegManager.releaseReg(right);
       break;
 #pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_LT:
 #pragma region slt
       slt(os, left, left, right);
-      RegManager.releaseReg(right);
       break;
 #pragma endregion
 
@@ -300,6 +296,7 @@ void RiscvGenerator::WriteBinaInst(OpType op,
 
     default:
       cerr << op;
+      break;
       assert(false);
   }
 }
