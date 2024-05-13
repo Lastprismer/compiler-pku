@@ -19,9 +19,8 @@ struct RetInfo {
   int value;
   string name;
   RetInfo();
-  RetInfo(int _value);
-  RetInfo(string _symbol);
-  RetInfo(int _, string _var);
+  RetInfo(int value);
+  RetInfo(string symbol);
   const int& GetValue() const;
   const string& GetSym() const;
 };
@@ -40,7 +39,7 @@ class IRGenerator {
   string return_type;
   GenSettings setting;
   SymbolManager sbmanager;
-  RetInfo functionRetInfo;
+  RetInfo function_retInfo;
 
   // 生成函数开头
   void WriteFuncPrologue();

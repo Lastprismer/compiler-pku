@@ -23,14 +23,14 @@ struct SymbolTableEntry {
   int value;
   int layer;
   SymbolTableEntry();
-  SymbolTableEntry(SymbolType _stype,
-                   VarType _vtype,
-                   string _var_name,
-                   int _value,
+  SymbolTableEntry(SymbolType symbol_ty,
+                   VarType var_ty,
+                   string var_name,
+                   int value,
                    int layer);
-  SymbolTableEntry(SymbolType _stype,
-                   VarType _vtype,
-                   string _var_name,
+  SymbolTableEntry(SymbolType symbol_ty,
+                   VarType var_ty,
+                   string var_name,
                    int layer);
   // @ + name
   string GetAllocName() const;

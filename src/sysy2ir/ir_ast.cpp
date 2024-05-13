@@ -351,7 +351,7 @@ void StmtAST::Dump() {
     exp->Dump();
     auto ee = dynamic_cast<ExpAST*>(exp.get());
     // 设置返回值
-    gen.functionRetInfo = ee->thisRet;
+    gen.function_retInfo = ee->thisRet;
 
     gen.WriteFuncEpilogue();
   } else if (st == stmttype_t::expr) {
@@ -363,7 +363,7 @@ void StmtAST::Dump() {
     gen.sbmanager.PopScope();
   } else if (st == stmttype_t::nullexp) {
   } else if (st == stmttype_t::nullret) {
-    gen.functionRetInfo = RetInfo();
+    gen.function_retInfo = RetInfo();
     gen.WriteFuncEpilogue();
   }
 }

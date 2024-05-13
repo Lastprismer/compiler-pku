@@ -110,7 +110,7 @@ void visit_inst_load(const koopa_raw_value_t& inst_load) {
     smem.InstResult[inst_load] = smem.InstResult[inst_load->kind.data.load.src];
     return;
   }
-  // assert(false);
+  assert(false);
 }
 
 void visit_inst_store(const koopa_raw_value_t& inst) {
@@ -183,21 +183,25 @@ void CalcMemoryNeeded(const koopa_raw_function_t& func) {
   int allocSize = 0;
   // 遍历函数所有的bb中的所有指令
   const koopa_raw_slice_t& func_bbs = func->bbs;
-  // assert(func_bbs.kind == KOOPA_RSIK_BASIC_BLOCK);
+
+  assert(func_bbs.kind == KOOPA_RSIK_BASIC_BLOCK);
   for (size_t i = 0; i < func_bbs.len; ++i) {
     const koopa_raw_basic_block_t& bb =
         reinterpret_cast<koopa_raw_basic_block_t>(func_bbs.buffer[i]);
-    // assert(bb->insts.kind == KOOPA_RSIK_VALUE);
 
+    assert(bb->insts.kind == KOOPA_RSIK_VALUE);
     for (size_t j = 0; j < bb->insts.len; ++j) {
       const koopa_raw_value_t& value =
           reinterpret_cast<koopa_raw_value_t>(bb->insts.buffer[j]);
-      if (value->ty->tag == KOOPA_RTT_INT32)
+      // alloc和binary
+      if (value->kind.tag == KOOPA_RVT_ALLOC ||
+          value->kind.tag == KOOPA_RVT_BINARY)
         allocSize += 4;
     }
   }
 
   // 向上进位到16
+  std::cout << "allocSize: " << allocSize << std::endl;
   allocSize = (allocSize + 15) / 16 * 16;
   RiscvGenerator::getInstance().StackMemManager.SetStackMem(allocSize);
   return;
@@ -212,7 +216,7 @@ Reg GetValueResult(const koopa_raw_value_t& value) {
     smem.WriteLI(rs, value->kind.data.integer.value);
     return rs;
   }
-  // assert(smem.InstResult.find(value) != smem.InstResult.end());
+  assert(smem.InstResult.find(value) != smem.InstResult.end());
 
   StackMemoryModule::InstResultInfo info;
   info = smem.InstResult.at(value);

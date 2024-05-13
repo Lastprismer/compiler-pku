@@ -24,7 +24,7 @@ IRGenerator::IRGenerator() : sbmanager() {
   variable_pool = 0;
   function_name = "";
   return_type = "";
-  functionRetInfo = RetInfo();
+  function_retInfo = RetInfo();
 }
 
 IRGenerator& IRGenerator::getInstance() {
@@ -40,7 +40,7 @@ void IRGenerator::WriteFuncPrologue() {
 void IRGenerator::WriteFuncEpilogue() {
   if (setting.shouldWriting) {
     ostream& os = setting.getOs();
-    os << setting.getIndentStr() << "ret " << parseRetInfo(functionRetInfo)
+    os << setting.getIndentStr() << "ret " << parseRetInfo(function_retInfo)
        << "\n"
        << "}" << endl;
     setting.shouldWriting = false;
