@@ -15,44 +15,52 @@ using namespace std;
 using ir::RetInfo;
 
 /*
+CompUnit        ::= FuncDef;
 
-CompUnit      ::= FuncDef;
+变量定义：
+Decl            ::= ConstDecl | VarDecl;
+ConstDecl       ::= "const" BType ConstDef {"," ConstDef} ";";
+ConstDecl       ::= "const" BType ConstDef ConstDeclList ";";
+ConstDeclList   ::= "," ConstDef ConstDeclList | epsilon
 
-Decl          ::= ConstDecl | VarDecl;
-ConstDecl     ::= "const" BType ConstDef {"," ConstDef} ";";
-BType         ::= "int";
-ConstDef      ::= IDENT "=" ConstInitVal;
-ConstInitVal  ::= ConstExp;
-VarDecl       ::= BType VarDef {"," VarDef} ";";
-VarDef        ::= IDENT | IDENT "=" InitVal;
-InitVal       ::= Exp;
+BType           ::= "int";
+ConstDef        ::= IDENT "=" ConstInitVal;
+ConstInitVal    ::= ConstExp;
+VarDecl         ::= BType VarDef VarDeclList ";";
+VarDeclList     ::= "," VarDef VarDeclList | epsilon
+VarDef          ::= IDENT | IDENT "=" InitVal;
+InitVal         ::= Exp;
 
-FuncDef       ::= FuncType IDENT "(" ")" Block;
-FuncType      ::= "int";
+函数定义：
+FuncDef         ::= FuncType IDENT "(" ")" Block;
+FuncType        ::= "int";
 
-Block         ::= "{" {BlockItem} "}";
-BlockItem     ::= Decl | Stmt;
-Stmt          ::= LVal "=" Exp ";"
-                | [Exp] ";"
-                | Block
-                | "return" [Exp] ";";
+语句：
+Block           ::= "{" BlockItem BlockList "}";
+BlockList       ::= BlockItem BlockList | epsilon
+BlockItem       ::= Decl | Stmt;
+Stmt            ::= LVal "=" Exp ";"
+                  | [Exp] ";"
+                  | Block
+                  | "return" [Exp] ";";
+                  | "if" "(" Exp ")" Stmt ["else" Stmt]
 
-Exp           ::= LOrExp;
-LVal          ::= IDENT;
-PrimaryExp    ::= "(" Exp ")" | LVal | Number;
-Number        ::= INT_CONST;
-UnaryExp      ::= PrimaryExp
-                | "+" UnaryExp
-                | "-" UnaryExp
-                | "!" UnaryExp;
-MulExp        ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;
-AddExp        ::= MulExp | AddExp ("+" | "-") MulExp;
-RelExp        ::= AddExp | RelExp ("<" | ">" | "<=" | ">=") AddExp;
-EqExp         ::= RelExp | EqExp ("==" | "!=") RelExp;
-LAndExp       ::= EqExp | LAndExp "&&" EqExp;
-LOrExp        ::= LAndExp | LOrExp "||" LAndExp;
-ConstExp      ::= Exp;
-
+运算：
+Exp             ::= LOrExp;
+LVal            ::= IDENT;
+PrimaryExp      ::= "(" Exp ")" | LVal | Number;
+Number          ::= INT_CONST;
+UnaryExp        ::= PrimaryExp
+                  | "+" UnaryExp
+                  | "-" UnaryExp
+                  | "!" UnaryExp;
+MulExp          ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;
+AddExp          ::= MulExp | AddExp ("+" | "-") MulExp;
+RelExp          ::= AddExp | RelExp ("<" | ">" | "<=" | ">=") AddExp;
+EqExp           ::= RelExp | EqExp ("==" | "!=") RelExp;
+LAndExp         ::= EqExp | LAndExp "&&" EqExp;
+LOrExp          ::= LAndExp | LOrExp "||" LAndExp;
+ConstExp        ::= Exp;
 
 */
 
@@ -83,10 +91,7 @@ class DeclAST : public BaseAST {
   void Dump() override;
 };
 
-// ConstDecl     ::= "const" BType ConstDef {"," ConstDef} ";";
-// |
 // ConstDecl     ::= "const" BType ConstDef ConstDeclList ";";
-// ConstDeclList  ::= "," ConstDef ConstDeclList | epsilon
 class ConstDefAST;
 class ConstDeclAST : public BaseAST {
  public:
@@ -97,6 +102,7 @@ class ConstDeclAST : public BaseAST {
   void Dump() override;
 };
 
+// ConstDeclList  ::= "," ConstDef ConstDeclList | epsilon
 // 不进树
 class ConstDeclListUnit : public BaseAST {
  public:
@@ -135,10 +141,7 @@ class ConstInitValAST : public BaseAST {
   void Dump() override;
 };
 
-// VarDecl       ::= BType VarDef {"," VarDef} ";";
-// |
 // VarDecl     ::= BType VarDef VarDeclList ";";
-// VarDeclList  ::= "," VarDef VarDeclList | epsilon
 class VarDefAST;
 class VarDeclAST : public BaseAST {
  public:
@@ -149,6 +152,8 @@ class VarDeclAST : public BaseAST {
   void Dump() override;
 };
 
+// VarDeclList  ::= "," VarDef VarDeclList | epsilon
+// 不进树
 class VarDeclListUnit : public BaseAST {
  public:
   // hello, world
@@ -197,10 +202,7 @@ class FuncTypeAST : public BaseAST {
   void Dump() override;
 };
 
-// Block         ::= "{" {BlockItem} "}";
-// |
-// Block     ::= "{" BlockItem BlockList "}";
-// BlockList  ::= BlockItem BlockList | epsilon
+// Block           ::= "{" BlockItem BlockList "}";
 class BlockItemAST;
 class BlockAST : public BaseAST {
  public:
@@ -210,6 +212,8 @@ class BlockAST : public BaseAST {
   void Dump() override;
 };
 
+// BlockList  ::= BlockItem BlockList | epsilon
+// 不进树
 class BlockListUnit : public BaseAST {
  public:
   // plz forgive me
@@ -235,10 +239,11 @@ Stmt          ::= LVal "=" Exp ";"
                 | [Exp] ";"
                 | Block
                 | "return" [Exp] ";";
+                | "if" "(" Exp ")" Stmt ["else" Stmt]
 */
 class StmtAST : public BaseAST {
  public:
-  enum stmttype_t { CALC_LVAL, RETURN, expr, block, nullexp, nullret };
+  enum stmttype_t { storelval, ret, expr, block, nullexp, nullret };
   stmttype_t st;
   unique_ptr<BaseAST> lval;
   unique_ptr<BaseAST> exp;

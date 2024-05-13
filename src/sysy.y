@@ -271,13 +271,13 @@ Stmt          ::= LVal "=" Exp ";"
 Stmt
   : RETURN Exp ';' {
     auto ast = new StmtAST();
-    ast->st = StmtAST::stmttype_t::RETURN;
+    ast->st = StmtAST::stmttype_t::ret;
     ast->exp = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
   | LVal '=' Exp ';' {
     auto ast = new StmtAST();
-    ast->st = StmtAST::stmttype_t::CALC_LVAL;
+    ast->st = StmtAST::stmttype_t::storelval;
     ast->lval = unique_ptr<BaseAST>($1);
     ast->exp = unique_ptr<BaseAST>($3);
     $$ = ast;

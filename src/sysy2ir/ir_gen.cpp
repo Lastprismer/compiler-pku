@@ -151,8 +151,6 @@ const string IRGenerator::parseRetInfo(const RetInfo& info) const {
       ss << info.GetSym();
       break;
     default:
-      cerr << "void is not supported";
-      assert(false);
       break;
   }
   return ss.str();

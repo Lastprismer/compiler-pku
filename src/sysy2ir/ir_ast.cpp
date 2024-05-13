@@ -316,24 +316,46 @@ void StmtAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "StmtAST {" << endl;
   make_indent(os, indent + 1);
-  os << "type: " << (st == stmttype_t::CALC_LVAL ? "calculate lval" : "return")
-     << endl;
-  if (st == CALC_LVAL) {
+  os << "type: ";
+  switch (st) {
+    case stmttype_t::storelval:
+      os << "calculate lval" << endl;
+      break;
+    case stmttype_t::ret:
+      os << "return" << endl;
+      break;
+    case stmttype_t::block:
+      os << "block" << endl;
+      break;
+    case stmttype_t::expr:
+      os << "expr" << endl;
+      break;
+    case stmttype_t::nullexp:
+      os << "null exp" << endl;
+      break;
+    case stmttype_t::nullret:
+      os << "return void" << endl;
+      break;
+  }
+  if (st == stmttype_t::storelval) {
     lval->Print(os, indent + 1);
     make_indent(os, indent + 1);
     os << "=" << endl;
     exp->Print(os, indent + 1);
-  } else {
+  } else if (st == stmttype_t::ret) {
+    exp->Print(os, indent + 1);
+  } else if (st == stmttype_t::block) {
+    blk->Print(os, indent + 1);
+  } else if (st == stmttype_t::expr) {
     exp->Print(os, indent + 1);
   }
   make_indent(os, indent);
   os << " }," << endl;
 }
 
-// TODO
 void StmtAST::Dump() {
   IRGenerator& gen = IRGenerator::getInstance();
-  if (st == stmttype_t::CALC_LVAL) {
+  if (st == stmttype_t::storelval) {
     AssignmentProcessor& aproc = gen.sbmanager.getAProc();
     // 记录左值
     aproc.Enable();
@@ -347,12 +369,11 @@ void StmtAST::Dump() {
     // 赋值
     gen.WriteStoreInst(ee->thisRet,
                        gen.sbmanager.getEntry(aproc.GetCurrentVar()));
-  } else if (st == stmttype_t::RETURN) {
+  } else if (st == stmttype_t::ret) {
     exp->Dump();
     auto ee = dynamic_cast<ExpAST*>(exp.get());
     // 设置返回值
     gen.function_retInfo = ee->thisRet;
-
     gen.WriteFuncEpilogue();
   } else if (st == stmttype_t::expr) {
     // 不记录值
