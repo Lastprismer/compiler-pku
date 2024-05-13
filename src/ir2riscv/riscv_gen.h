@@ -62,7 +62,6 @@ class StackMemoryModule : public BaseModule {
     const InstResultInfo& src;
     StoreInfo(const InstResultInfo& dstInfo, const InstResultInfo& srcInfo);
   };
-  int StackUsed;
   map<koopa_raw_value_t, InstResultInfo> InstResult;
   StackMemoryModule();
   const int& GetStackMem();
@@ -73,6 +72,9 @@ class StackMemoryModule : public BaseModule {
   void Debug_OutputInstResult();
   // 返回应该用的addr
   int IncreaseStackUsed();
+
+ private:
+  int StackUsed;
 };
 
 class RiscvGenerator {

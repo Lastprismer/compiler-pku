@@ -140,8 +140,9 @@ void StackMemoryModule::Debug_OutputInstResult() {
 }
 
 int StackMemoryModule::IncreaseStackUsed() {
+  int addr = StackUsed;
   StackUsed += 4;
-  return StackUsed;
+  return addr;
 }
 
 StackMemoryModule::StackMemoryModule()
