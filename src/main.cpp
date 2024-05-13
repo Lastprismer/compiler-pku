@@ -37,5 +37,5 @@ void supreme_compile(int argc, const char* argv[]) {
   if (mode == CompilerMode::KOOPA) {
     return;
   }
-  riscv::ir2riscv(ir, output);
+  // riscv::ir2riscv(ir, output);
 }
