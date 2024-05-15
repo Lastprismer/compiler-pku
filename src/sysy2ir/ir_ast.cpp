@@ -238,12 +238,11 @@ void FuncDefAST::Print(ostream& os, int indent) const {
 void FuncDefAST::Dump() {
   IRGenerator& gen = IRGenerator::getInstance();
   func_type->Dump();
-  gen.function_name = func_name;
+  gen.funcName = func_name;
 
   gen.WriteFuncPrologue();
-  // TODO: temp
-  gen.WriteBlockPrologue();
   block->Dump();
+  gen.WriteFuncEpilogue();
 }
 
 #pragma endregion
@@ -256,7 +255,7 @@ void FuncTypeAST::Print(ostream& os, int indent) const {
 }
 
 void FuncTypeAST::Dump() {
-  IRGenerator::getInstance().return_type = "i32";
+  IRGenerator::getInstance().returnType = "i32";
 }
 
 #pragma endregion
@@ -274,8 +273,6 @@ void BlockAST::Print(ostream& os, int indent) const {
 }
 
 void BlockAST::Dump() {
-  IRGenerator& gen = IRGenerator::getInstance();
-  // gen.WriteBlockPrologue();
   for (auto it = block_items.begin(); it != block_items.end(); it++) {
     (*it)->Dump();
   }
@@ -299,63 +296,234 @@ void BlockItemAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "BlockItemAST {" << endl;
   make_indent(os, indent + 1);
-  os << "type: " << (bt == blocktype_t::DECL ? "decl" : "stmt") << endl;
+  os << "type: " << (bt == blocktype_t::decl ? "decl" : "stmt") << endl;
   content->Print(os, indent + 1);
   make_indent(os, indent);
   os << " }," << endl;
 }
 
 void BlockItemAST::Dump() {
-  content->Dump();
+  auto& gen = IRGenerator::getInstance();
+  if (!gen.hasRetThisBB) {
+    content->Dump();
+  }
 }
 
 #pragma endregion
 
 #pragma region StmtAST
+
 void StmtAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "StmtAST {" << endl;
   make_indent(os, indent + 1);
-  os << "type: ";
-  switch (st) {
-    case stmttype_t::storelval:
-      os << "calculate lval" << endl;
-      break;
-    case stmttype_t::ret:
-      os << "return" << endl;
-      break;
-    case stmttype_t::block:
-      os << "block" << endl;
-      break;
-    case stmttype_t::expr:
-      os << "expr" << endl;
-      break;
-    case stmttype_t::nullexp:
-      os << "null exp" << endl;
-      break;
-    case stmttype_t::nullret:
-      os << "return void" << endl;
-      break;
-  }
-  if (st == stmttype_t::storelval) {
-    lval->Print(os, indent + 1);
-    make_indent(os, indent + 1);
-    os << "=" << endl;
-    exp->Print(os, indent + 1);
-  } else if (st == stmttype_t::ret) {
-    exp->Print(os, indent + 1);
-  } else if (st == stmttype_t::block) {
-    blk->Print(os, indent + 1);
-  } else if (st == stmttype_t::expr) {
-    exp->Print(os, indent + 1);
-  }
+  os << "type: " << (type == stmty_t::open ? "open" : "closed") << endl;
+  stmt->Print(os, indent + 1);
   make_indent(os, indent);
   os << " }," << endl;
 }
 
 void StmtAST::Dump() {
+  stmt->Dump();
+}
+
+#pragma endregion
+
+#pragma region OpenStmtAST
+
+void OpenStmtAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "OpenStmtAST {" << endl;
+  make_indent(os, indent + 1);
+  os << "type: ";
+  switch (type) {
+    case opty_t::io:
+      os << "if (Exp) Open" << endl;
+      make_indent(os, indent + 1);
+      os << "IF" << endl;
+      exp->Print(os, indent + 1);
+      open->Print(os, indent + 1);
+      break;
+    case opty_t::ic:
+      os << "if (Exp) Closed" << endl;
+      make_indent(os, indent + 1);
+      os << "IF" << endl;
+      exp->Print(os, indent + 1);
+      closed->Print(os, indent + 1);
+      break;
+    case opty_t::iceo:
+      os << "if (Exp) Closed else Open" << endl;
+      make_indent(os, indent + 1);
+      os << "IF" << endl;
+      exp->Print(os, indent + 1);
+      closed->Print(os, indent + 1);
+      make_indent(os, indent + 1);
+      os << "ELSE" << endl;
+      open->Print(os, indent + 1);
+      break;
+  }
+  make_indent(os, indent);
+  os << " }," << endl;
+}
+
+void OpenStmtAST::Dump() {
   IRGenerator& gen = IRGenerator::getInstance();
-  if (st == stmttype_t::storelval) {
+
+  exp->Dump();
+  auto cond = dynamic_cast<ExpAST*>(exp.get());
+  RetInfo ret = cond->thisRet;
+  IfInfo ifin;
+
+  switch (type) {
+    case io:
+    case ic:
+      ifin = IfInfo(IfInfo::ifty_t::i);
+      gen.WriteBrInst(ret, ifin);
+      gen.WriteLabel(ifin.then_label);
+      if (type == io) {
+        open->Dump();
+      } else {
+        closed->Dump();
+      }
+      if (!gen.hasRetThisBB) {
+        gen.WriteJumpInst(ifin.next_label);
+      }
+      gen.WriteLabel(ifin.next_label);
+      break;
+
+    case iceo:
+    default: {
+      ifin = IfInfo(IfInfo::ifty_t::ie);
+      gen.WriteBrInst(ret, ifin);
+
+      gen.WriteLabel(ifin.then_label);
+      closed->Dump();
+      bool retInThen = gen.hasRetThisBB;
+      if (!retInThen) {
+        gen.WriteJumpInst(ifin.next_label);
+      }
+
+      gen.WriteLabel(ifin.else_label);
+      open->Dump();
+      bool retInElse = gen.hasRetThisBB;
+      if (!gen.hasRetThisBB) {
+        gen.WriteJumpInst(ifin.next_label);
+      }
+
+      if (!(retInElse && retInThen)) {
+        gen.WriteLabel(ifin.next_label);
+      }
+    } break;
+  }
+}
+
+#pragma endregion
+
+#pragma region ClosedStmtAST
+
+void ClosedStmtAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "ClosedStmtAST {" << endl;
+  make_indent(os, indent + 1);
+  os << "type: ";
+  switch (type) {
+    case csty_t::simp:
+      os << "simple" << endl;
+      simple->Print(os, indent + 1);
+      break;
+    case csty_t::icec:
+      os << "if (Exp) Closed else Closed" << endl;
+      make_indent(os, indent + 1);
+      os << "IF" << endl;
+      exp->Print(os, indent + 1);
+      tclosed->Print(os, indent + 1);
+      make_indent(os, indent + 1);
+      os << "ELSE" << endl;
+      fclosed->Print(os, indent + 1);
+      break;
+  }
+  make_indent(os, indent);
+  os << " }," << endl;
+}
+
+void ClosedStmtAST::Dump() {
+  IRGenerator& gen = IRGenerator::getInstance();
+
+  switch (type) {
+    case simp:
+      simple->Dump();
+      break;
+    case icec:
+    default: {
+      exp->Dump();
+      auto cond = dynamic_cast<ExpAST*>(exp.get());
+      RetInfo ret = cond->thisRet;
+      IfInfo ifin(IfInfo::ifty_t::ie);
+      gen.WriteBrInst(ret, ifin);
+
+      gen.WriteLabel(ifin.then_label);
+      tclosed->Dump();
+      bool retInThen = gen.hasRetThisBB;
+      if (!retInThen) {
+        gen.WriteJumpInst(ifin.next_label);
+      }
+
+      gen.WriteLabel(ifin.else_label);
+      fclosed->Dump();
+      bool retInElse = gen.hasRetThisBB;
+      if (!gen.hasRetThisBB) {
+        gen.WriteJumpInst(ifin.next_label);
+      }
+
+      if (!(retInElse && retInThen)) {
+        gen.WriteLabel(ifin.next_label);
+      }
+    } break;
+  }
+}
+
+#pragma endregion
+
+#pragma region SimpleStmtAST
+void SimpleStmtAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "SimpleStmtAST {" << endl;
+  make_indent(os, indent + 1);
+  os << "type: ";
+  switch (st) {
+    case sstmt_t::storelval:
+      os << "calculate lval" << endl;
+      lval->Print(os, indent + 1);
+      make_indent(os, indent + 1);
+      os << "=" << endl;
+      exp->Print(os, indent + 1);
+      break;
+    case sstmt_t::ret:
+      os << "return" << endl;
+      exp->Print(os, indent + 1);
+      break;
+    case sstmt_t::block:
+      os << "block" << endl;
+      blk->Print(os, indent + 1);
+      break;
+    case sstmt_t::expr:
+      os << "expr" << endl;
+      exp->Print(os, indent + 1);
+      break;
+    case sstmt_t::nullexp:
+      os << "null exp" << endl;
+      break;
+    case sstmt_t::nullret:
+      os << "return void" << endl;
+      break;
+  }
+  make_indent(os, indent);
+  os << " }," << endl;
+}
+
+void SimpleStmtAST::Dump() {
+  IRGenerator& gen = IRGenerator::getInstance();
+  if (st == sstmt_t::storelval) {
     AssignmentProcessor& aproc = gen.sbmanager.getAProc();
     // 记录左值
     aproc.Enable();
@@ -369,23 +537,23 @@ void StmtAST::Dump() {
     // 赋值
     gen.WriteStoreInst(ee->thisRet,
                        gen.sbmanager.getEntry(aproc.GetCurrentVar()));
-  } else if (st == stmttype_t::ret) {
+  } else if (st == sstmt_t::ret) {
     exp->Dump();
     auto ee = dynamic_cast<ExpAST*>(exp.get());
     // 设置返回值
-    gen.function_retInfo = ee->thisRet;
-    gen.WriteFuncEpilogue();
-  } else if (st == stmttype_t::expr) {
+    gen.funcRetInfo = ee->thisRet;
+    gen.WriteRetInst();
+  } else if (st == sstmt_t::expr) {
     // 不记录值
     exp->Dump();
   } else if (st == block) {
     gen.sbmanager.PushScope();
     blk->Dump();
     gen.sbmanager.PopScope();
-  } else if (st == stmttype_t::nullexp) {
-  } else if (st == stmttype_t::nullret) {
-    gen.function_retInfo = RetInfo();
-    gen.WriteFuncEpilogue();
+  } else if (st == sstmt_t::nullexp) {
+  } else if (st == sstmt_t::nullret) {
+    gen.funcRetInfo = RetInfo();
+    gen.WriteRetInst();
   }
 }
 
@@ -520,13 +688,16 @@ void UnaryExpAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "UnaryExpAST {" << endl;
   make_indent(os, indent + 1);
-  os << "type: " << type() << endl;
+  os << "type: ";
 
   if (uex == uex_t::Primary) {
+    os << "Primary" << endl;
     exp->Print(os, indent + 1);
   } else {
+    os << "UnaryOp UnaryExp" << endl;
     make_indent(os, indent + 1);
-    os << "op: " << uop << endl;
+    os << "op: " << (uop == uop_t::Pos ? '+' : (uop == uop_t::Neg ? '-' : '!'))
+       << endl;
     exp->Print(os, indent + 1);
   }
 
@@ -559,17 +730,6 @@ void UnaryExpAST::Dump() {
     } break;
     default:
       break;
-  }
-}
-
-const char* UnaryExpAST::type() const {
-  switch (uex) {
-    case Primary:
-      return "PrimaryExp";
-    case OPUnary:
-      return "UnaryOp UnaryExp";
-    default:
-      assert(false);
   }
 }
 

@@ -2,6 +2,8 @@
 
 namespace ir {
 
+#pragma region RetInfo
+
 RetInfo::RetInfo() : ty(ty_void) {}
 
 RetInfo::RetInfo(int _value) : ty(ty_int), value(_value) {}
@@ -18,13 +20,45 @@ const string& RetInfo::GetSym() const {
   return name;
 }
 
+const string RetInfo::GetInfo() const {
+  switch (ty) {
+    case RetInfo::retty_t::ty_int:
+      return to_string(GetValue());
+    case RetInfo::retty_t::ty_sbl:
+      return GetSym();
+    default:
+      return "";
+  }
+}
+
+#pragma endregion
+
+#pragma region IfInfo
+
+IfInfo::IfInfo()
+    : ty(ifty_t::i), then_label(-1), else_label(-1), next_label(-1) {}
+IfInfo::IfInfo(ifty_t _ty)
+    : ty(_ty), then_label(-1), else_label(-1), next_label(-1) {}
+
+IfInfo::IfInfo(int then, int next)
+    : ty(ifty_t::i), then_label(then), next_label(next) {}
+
+IfInfo::IfInfo(int then, int _else, int next)
+    : ty(ifty_t::ie), then_label(then), else_label(_else), next_label(next) {}
+
+#pragma endregion
+
+#pragma region IRGen - Class
+
 IRGenerator::IRGenerator() : sbmanager() {
   setting.setOs(cout).setIndent(0);
 
-  variable_pool = 0;
-  function_name = "";
-  return_type = "";
-  function_retInfo = RetInfo();
+  bbPool = 0;
+  variablePool = 0;
+  hasRetThisBB = false;
+  funcName = "";
+  returnType = "";
+  funcRetInfo = RetInfo();
 }
 
 IRGenerator& IRGenerator::getInstance() {
@@ -32,33 +66,35 @@ IRGenerator& IRGenerator::getInstance() {
   return gen;
 }
 
+#pragma endregion
+
+#pragma region IRGen - lv1
+
 void IRGenerator::WriteFuncPrologue() {
-  setting.getOs() << "fun @" << function_name << "(): " << return_type << "{\n";
+  setting.getOs() << "fun @" << funcName << "(): " << returnType << " {\n"
+                  << setting.getIndentStr()
+                  << "%"
+                     "entry:"
+                  << endl;
+  setting.getIndent() += 2;
   return;
 }
 
 void IRGenerator::WriteFuncEpilogue() {
-  if (setting.shouldWriting) {
-    ostream& os = setting.getOs();
-    os << setting.getIndentStr() << "ret " << parseRetInfo(function_retInfo)
-       << "\n"
-       << "}" << endl;
-    setting.shouldWriting = false;
-  }
+  ostream& os = setting.getOs();
+  os << "}" << endl;
   return;
 }
 
-void IRGenerator::WriteBlockPrologue() {
-  if (setting.shouldWriting) {
-    ostream& os = setting.getOs();
-    os << setting.getIndentStr()
-       << "%"
-          "entry:"
-       << endl;
-    setting.getIndent() += 2;
-  }
-  return;
+void IRGenerator::WriteRetInst() {
+  ostream& os = setting.getOs();
+  os << setting.getIndentStr() << "ret " << funcRetInfo.GetInfo() << endl;
+  hasRetThisBB = true;
 }
+
+#pragma endregion
+
+#pragma region IRGen - lv3
 
 const RetInfo IRGenerator::WriteUnaryInst(const RetInfo& left, OpID op) {
   if (op == OpID::UNARY_POS) {
@@ -82,14 +118,14 @@ const RetInfo IRGenerator::WriteBinaryInst(const RetInfo& left,
   ostream& os = setting.getOs();
 
   // const expr
-  if (left.ty == RetInfo::RetTy::ty_int && right.ty == RetInfo::RetTy::ty_int) {
+  if (left.ty == RetInfo::retty_t::ty_int &&
+      right.ty == RetInfo::retty_t::ty_int) {
     return RetInfo(calcConstExpr(left.GetValue(), right.GetValue(), op));
   }
 
   const string newSymbolName = getSymbolName(registerNewSymbol());
-  if (setting.shouldWriting)
-    os << setting.getIndentStr() << newSymbolName << " = " << BiOp2koopa(op)
-       << ' ' << parseRetInfo(left) << ", " << parseRetInfo(right) << endl;
+  os << setting.getIndentStr() << newSymbolName << " = " << BiOp2koopa(op)
+     << ' ' << left.GetInfo() << ", " << right.GetInfo() << endl;
   return RetInfo(newSymbolName);
 }
 
@@ -102,9 +138,11 @@ const RetInfo IRGenerator::WriteLogicInst(const RetInfo& left,
   return WriteBinaryInst(n_left, n_right, op);
 }
 
+#pragma endregion
+
+#pragma region IRGen - lv4
+
 void IRGenerator::WriteAllocInst(const SymbolTableEntry& entry) {
-  if (!setting.shouldWriting)
-    return;
   ostream& os = setting.getOs();
   os << setting.getIndentStr() << entry.GetAllocInst() << endl;
 }
@@ -112,15 +150,12 @@ void IRGenerator::WriteAllocInst(const SymbolTableEntry& entry) {
 const RetInfo IRGenerator::WriteLoadInst(const SymbolTableEntry& entry) {
   ostream& os = setting.getOs();
   const string newSymbolName = getSymbolName(registerNewSymbol());
-  if (setting.shouldWriting)
-    os << setting.getIndentStr() << entry.GetLoadInst(newSymbolName) << endl;
+  os << setting.getIndentStr() << entry.GetLoadInst(newSymbolName) << endl;
   return RetInfo(newSymbolName);
 }
 
 void IRGenerator::WriteStoreInst(const RetInfo& value,
                                  const SymbolTableEntry& entry) {
-  if (!setting.shouldWriting)
-    return;
   ostream& os = setting.getOs();
 
   os << setting.getIndentStr();
@@ -133,27 +168,76 @@ void IRGenerator::WriteStoreInst(const RetInfo& value,
   }
 }
 
-int IRGenerator::registerNewSymbol() {
-  return variable_pool++;
+#pragma endregion
+
+#pragma region IRGen - lv6
+
+void IRGenerator::WriteBasicBlockPrologue(const int& bb_id) {
+  ostream& os = getInstance().setting.getOs();
+  os << "\n%" << getLabelName(bb_id) << ":" << endl;
 }
 
-string IRGenerator::getSymbolName(const int& symbol) const {
+void IRGenerator::WriteBrInst(const RetInfo& cond, IfInfo& info) {
+  ostream& os = getInstance().setting.getOs();
+  switch (info.ty) {
+    case IfInfo::ifty_t::i:
+      info.then_label = registerNewBB();
+      info.next_label = registerNewBB();
+      os << setting.getIndentStr() << "br " << cond.GetInfo() << ", "
+         << getLabelName(info.then_label) << ", "
+         << getLabelName(info.next_label) << endl;
+      break;
+    case IfInfo::ifty_t::ie:
+    default:
+      info.then_label = registerNewBB();
+      info.else_label = registerNewBB();
+      info.next_label = registerNewBB();
+      os << setting.getIndentStr() << "br " << cond.GetInfo() << ", "
+         << getLabelName(info.then_label) << ", "
+         << getLabelName(info.else_label) << endl;
+      break;
+  }
+  return;
+}
+
+void IRGenerator::WriteJumpInst(const int& labelID) {
+  WriteJumpInst(getLabelName(labelID));
+}
+
+void IRGenerator::WriteJumpInst(const string& labelName) {
+  ostream& os = getInstance().setting.getOs();
+  os << setting.getIndentStr() << "jump " << labelName << endl;
+}
+
+void IRGenerator::WriteLabel(const int& BBId) {
+  WriteLabel(getLabelName(BBId));
+}
+
+void IRGenerator::WriteLabel(const string& labelName) {
+  ostream& os = getInstance().setting.getOs();
+  os << "\n" << labelName << ":" << endl;
+  // 新块的开始
+  hasRetThisBB = false;
+}
+
+int IRGenerator::registerNewSymbol() {
+  return variablePool++;
+}
+
+int IRGenerator::registerNewBB() {
+  return bbPool++;
+}
+
+#pragma endregion
+
+#pragma region IRGen - private
+
+const string IRGenerator::getSymbolName(const int& symbol) const {
   return string("%") + to_string(symbol);
 }
 
-const string IRGenerator::parseRetInfo(const RetInfo& info) const {
-  stringstream ss;
-  switch (info.ty) {
-    case RetInfo::RetTy::ty_int:
-      ss << info.GetValue();
-      break;
-    case RetInfo::RetTy::ty_sbl:
-      ss << info.GetSym();
-      break;
-    default:
-      break;
-  }
-  return ss.str();
+const string IRGenerator::getLabelName(const int& bb_id) const {
+  return string("%") + string("label_") + to_string(bb_id);
 }
 
 int IRGenerator::calcConstExpr(const int& l, const int& r, OpID op) {
@@ -189,4 +273,7 @@ int IRGenerator::calcConstExpr(const int& l, const int& r, OpID op) {
   }
   return 0;
 }
+
+#pragma endregion
+
 }  // namespace ir

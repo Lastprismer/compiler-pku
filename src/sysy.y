@@ -40,15 +40,18 @@ using namespace std;
 %token INT RETURN
 %token OPLE OPLT OPGE OPGT OPEQ OPNE OPAND OPOR
 %token CONST
+%token IF ELSE
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block Stmt
+%type <ast_val> FuncDef FuncType Block
 %type <ast_val> Exp PrimaryExp Number UnaryExp MulExp AddExp RelExp EqExp LAndExp LOrExp
 // lv4-const
 %type <ast_val> Decl ConstDecl BType ConstDef ConstDeclList ConstInitVal LVal BlockList BlockItem ConstExp
 %type <ast_val> VarDecl VarDef InitVal VarDeclList
+// lv6-if
+%type <ast_val> Stmt OpenStmt ClosedStmt SimpleStmt
 
 %%
 
@@ -82,11 +85,8 @@ Decl
   }
   ;
 
-// ConstDecl     ::= "const" BType ConstDef {"," ConstDef} ";";
-// |
-// ConstDecl     ::= "const" BType ConstDef ConstDeclList ";";
-// ConstDeclList  ::= "," ConstDef ConstDeclList | epsilon
 
+// ConstDecl     ::= "const" BType ConstDef ConstDeclList ";";
 ConstDecl
   : CONST BType ConstDef ConstDeclList ';' {
     auto ast = new ConstDeclAST();
@@ -102,6 +102,7 @@ ConstDecl
   }
   ;
 
+// ConstDeclList  ::= "," ConstDef ConstDeclList | epsilon
 ConstDeclList
   : ',' ConstDef ConstDeclList {
     ((ConstDeclListUnit*)$3)->const_defs.push_back((ConstDefAST*)$2);
@@ -141,10 +142,8 @@ ConstInitVal
   }
   ;
 
-// VarDecl       ::= BType VarDef {"," VarDef} ";";
-// |
+
 // VarDecl     ::= BType VarDef VarDeclList ";";
-// VarDeclList  ::= "," VarDef VarDeclList | epsilon
 VarDecl
   : BType VarDef VarDeclList ';' {
     auto ast = new VarDeclAST();
@@ -160,6 +159,7 @@ VarDecl
   }
   ;
 
+// VarDeclList     ::= "," VarDef VarDeclList | epsilon
 VarDeclList
   : ',' VarDef VarDeclList {
     ((VarDeclListUnit*)$3)->var_defs.push_back((VarDefAST*)$2);
@@ -216,10 +216,7 @@ FuncType
   }
   ;
 
-// Block         ::= "{" {BlockItem} "}";
-// |
 // Block     ::= "{" BlockList "}";
-// BlockList  ::= BlockItem BlockList | epsilon
 Block
   : '{' BlockList '}' {
     auto ast = new BlockAST();
@@ -234,6 +231,7 @@ Block
   }
   ;
 
+// BlockList  ::= BlockItem BlockList | epsilon
 BlockList
   : BlockItem BlockList {
     ((BlockListUnit*)$2)->block_items.push_back((BlockItemAST*)$1);
@@ -249,59 +247,127 @@ BlockList
 BlockItem
   : Decl {
     auto ast = new BlockItemAST();
-    ast->bt = BlockItemAST::blocktype_t::DECL;
+    ast->bt = BlockItemAST::blocktype_t::decl;
     ast->content = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | Stmt {
     auto ast = new BlockItemAST();
-    ast->bt = BlockItemAST::blocktype_t::STMT;
+    ast->bt = BlockItemAST::blocktype_t::stmt;
     ast->content = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;
 
-
-/*
-Stmt          ::= LVal "=" Exp ";"
-                | [Exp] ";"
-                | Block
-                | "return" [Exp] ";";
-*/
+// Stmt            ::= OpenStmt | ClosedStmt
 Stmt
-  : RETURN Exp ';' {
+  : OpenStmt {
     auto ast = new StmtAST();
-    ast->st = StmtAST::stmttype_t::ret;
-    ast->exp = unique_ptr<BaseAST>($2);
+    ast->type = StmtAST::stmty_t::open;
+    ast->stmt = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
-  | LVal '=' Exp ';' {
+  | ClosedStmt {
     auto ast = new StmtAST();
-    ast->st = StmtAST::stmttype_t::storelval;
+    ast->type = StmtAST::stmty_t::closed;
+    ast->stmt = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  ;
+
+/*
+OpenStmt        ::= "if" "(" Exp ")" OpenStmt
+                  | "if" "(" Exp ")" ClosedStmt
+                  | "if" "(" Exp ")" ClosedStmt "else" OpenStmt
+*/
+OpenStmt
+  : IF '(' Exp ')' OpenStmt {
+    auto ast = new OpenStmtAST();
+    ast->type = OpenStmtAST::opty_t::io;
+    ast->exp = unique_ptr<BaseAST>($3);
+    ast->open = unique_ptr<BaseAST>($5);
+    $$ = ast;
+  }
+  | IF '(' Exp ')' ClosedStmt {
+    auto ast = new OpenStmtAST();
+    ast->type = OpenStmtAST::opty_t::ic;
+    ast->exp = unique_ptr<BaseAST>($3);
+    ast->closed = unique_ptr<BaseAST>($5);
+    $$ = ast;
+  }
+  | IF '(' Exp ')' ClosedStmt ELSE OpenStmt {
+    auto ast = new OpenStmtAST();
+    ast->type = OpenStmtAST::opty_t::iceo;
+    ast->exp = unique_ptr<BaseAST>($3);
+    ast->closed = unique_ptr<BaseAST>($5);
+    ast->open = unique_ptr<BaseAST>($7);
+    $$ = ast;
+  }
+  ;
+
+/*
+ClosedStmt      ::= SimpleStmt
+                  | "if" "(" Exp ")" ClosedStmt "else" ClosedStmt
+*/
+ClosedStmt
+  : SimpleStmt {
+    auto ast = new ClosedStmtAST();
+    ast->type = ClosedStmtAST::csty_t::simp;
+    ast->simple = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | IF '(' Exp ')' ClosedStmt ELSE ClosedStmt {
+    auto ast = new ClosedStmtAST();
+    ast->type = ClosedStmtAST::csty_t::icec;
+    ast->exp = unique_ptr<BaseAST>($3);
+    ast->tclosed = unique_ptr<BaseAST>($5);
+    ast->fclosed = unique_ptr<BaseAST>($7);
+    $$ = ast;
+  }
+  ;
+
+/*
+SimpleStmt      ::= LVal "=" Exp ";"
+                  | Exp
+                  | ";"
+                  | Block
+                  | "return" Exp ";"
+                  | "return" ";"
+*/
+SimpleStmt
+  : LVal '=' Exp ';' {
+    auto ast = new SimpleStmtAST();
+    ast->st = SimpleStmtAST::sstmt_t::storelval;
     ast->lval = unique_ptr<BaseAST>($1);
     ast->exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
-  | Block {
-    auto ast = new StmtAST();
-    ast->st = StmtAST::stmttype_t::block;
-    ast->blk = unique_ptr<BaseAST>($1);
-    $$ = ast;
-  }
   | Exp ';' {
-    auto ast = new StmtAST();
-    ast->st = StmtAST::stmttype_t::expr;
+    auto ast = new SimpleStmtAST();
+    ast->st = SimpleStmtAST::sstmt_t::expr;
     ast->exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | ';' {
-    auto ast = new StmtAST();
-    ast->st = StmtAST::stmttype_t::nullexp;
+    auto ast = new SimpleStmtAST();
+    ast->st = SimpleStmtAST::sstmt_t::nullexp;
+    $$ = ast;
+  }
+  | Block {
+    auto ast = new SimpleStmtAST();
+    ast->st = SimpleStmtAST::sstmt_t::block;
+    ast->blk = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  } 
+  | RETURN Exp ';' {
+    auto ast = new SimpleStmtAST();
+    ast->st = SimpleStmtAST::sstmt_t::ret;
+    ast->exp = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
   | RETURN ';' {
-    auto ast = new StmtAST();
-    ast->st = StmtAST::stmttype_t::nullret;
+    auto ast = new SimpleStmtAST();
+    ast->st = SimpleStmtAST::sstmt_t::nullret;
     $$ = ast;
   }
   ;

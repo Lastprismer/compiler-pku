@@ -87,8 +87,8 @@ class SymbolTable {
  public:
   // 表
   map<string, SymbolTableEntry> table;
-  int layer;
-  SymbolTable(int layer);
+  int id;
+  SymbolTable(int ID);
   // utility
   bool TryGetEntry(string _symbol_name, SymbolTableEntry& out) const;
   void InsertEntry(const SymbolTableEntry& entry);
@@ -106,6 +106,7 @@ class SymbolManager {
   AssignmentProcessor aproc;
 
   // lv5
+  int tableIDPool;
   // 根表
   SymbolTable RootTable;
   // 当前的表
@@ -123,6 +124,8 @@ class SymbolManager {
   void PushScope();
   // 弹出一个表
   void PopScope();
+  // 分配一个新表ID
+  int registerNewTable();
 };
 
 }  // namespace ir

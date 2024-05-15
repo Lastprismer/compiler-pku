@@ -19,7 +19,6 @@ CompUnit        ::= FuncDef;
 
 变量定义：
 Decl            ::= ConstDecl | VarDecl;
-ConstDecl       ::= "const" BType ConstDef {"," ConstDef} ";";
 ConstDecl       ::= "const" BType ConstDef ConstDeclList ";";
 ConstDeclList   ::= "," ConstDef ConstDeclList | epsilon
 
@@ -31,19 +30,35 @@ VarDeclList     ::= "," VarDef VarDeclList | epsilon
 VarDef          ::= IDENT | IDENT "=" InitVal;
 InitVal         ::= Exp;
 
+
 函数定义：
 FuncDef         ::= FuncType IDENT "(" ")" Block;
 FuncType        ::= "int";
+
 
 语句：
 Block           ::= "{" BlockItem BlockList "}";
 BlockList       ::= BlockItem BlockList | epsilon
 BlockItem       ::= Decl | Stmt;
-Stmt            ::= LVal "=" Exp ";"
-                  | [Exp] ";"
+
+
+逻辑：
+Stmt            ::= OpenStmt | ClosedStmt
+OpenStmt        ::= "if" "(" Exp ")" OpenStmt
+                  | "if" "(" Exp ")" ClosedStmt
+                  | "if" "(" Exp ")" ClosedStmt "else" OpenStmt
+
+ClosedStmt      ::= SimpleStmt
+                  | "if" "(" Exp ")" ClosedStmt "else" ClosedStmt
+
+SimpleStmt      ::= LVal "=" Exp ";"
+                  | Exp
+                  | ";"
                   | Block
-                  | "return" [Exp] ";";
-                  | "if" "(" Exp ")" Stmt ["else" Stmt]
+                  | "return" Exp ";"
+                  | "return" ";"
+
+
 
 运算：
 Exp             ::= LOrExp;
@@ -91,8 +106,8 @@ class DeclAST : public BaseAST {
   void Dump() override;
 };
 
-// ConstDecl     ::= "const" BType ConstDef ConstDeclList ";";
 class ConstDefAST;
+// ConstDecl     ::= "const" BType ConstDef ConstDeclList ";";
 class ConstDeclAST : public BaseAST {
  public:
   unique_ptr<BaseAST> btype;
@@ -141,8 +156,8 @@ class ConstInitValAST : public BaseAST {
   void Dump() override;
 };
 
-// VarDecl     ::= BType VarDef VarDeclList ";";
 class VarDefAST;
+// VarDecl     ::= BType VarDef VarDeclList ";";
 class VarDeclAST : public BaseAST {
  public:
   unique_ptr<BaseAST> btype;
@@ -202,8 +217,8 @@ class FuncTypeAST : public BaseAST {
   void Dump() override;
 };
 
-// Block           ::= "{" BlockItem BlockList "}";
 class BlockItemAST;
+// Block           ::= "{" BlockItem BlockList "}";
 class BlockAST : public BaseAST {
  public:
   vector<unique_ptr<BlockItemAST>> block_items;
@@ -226,7 +241,7 @@ class BlockListUnit : public BaseAST {
 // BlockItem     ::= Decl | Stmt;
 class BlockItemAST : public BaseAST {
  public:
-  enum blocktype_t { DECL, STMT };
+  enum blocktype_t { decl, stmt };
   blocktype_t bt;
   unique_ptr<BaseAST> content;
 
@@ -234,17 +249,54 @@ class BlockItemAST : public BaseAST {
   void Dump() override;
 };
 
-/*
-Stmt          ::= LVal "=" Exp ";"
-                | [Exp] ";"
-                | Block
-                | "return" [Exp] ";";
-                | "if" "(" Exp ")" Stmt ["else" Stmt]
-*/
+// Stmt            ::= OpenStmt | ClosedStmt
 class StmtAST : public BaseAST {
  public:
-  enum stmttype_t { storelval, ret, expr, block, nullexp, nullret };
-  stmttype_t st;
+  enum stmty_t { open, closed } type;
+  unique_ptr<BaseAST> stmt;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+
+/*
+OpenStmt        ::= "if" "(" Exp ")" OpenStmt
+                  | "if" "(" Exp ")" ClosedStmt
+                  | "if" "(" Exp ")" ClosedStmt "else" OpenStmt
+*/
+class OpenStmtAST : public BaseAST {
+ public:
+  enum opty_t { io, ic, iceo } type;
+  unique_ptr<BaseAST> open, closed, exp;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+
+/*
+ClosedStmt      ::= SimpleStmt
+                  | "if" "(" Exp ")" ClosedStmt "else" ClosedStmt
+*/
+class ClosedStmtAST : public BaseAST {
+ public:
+  enum csty_t { simp, icec } type;
+  unique_ptr<BaseAST> simple, tclosed, fclosed, exp;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+
+/*
+SimpleStmt      ::= LVal "=" Exp ";"
+                  | [Exp] ";"
+                  | Block
+                  | "return" [Exp] ";";
+                  | "if" "(" Exp ")" Stmt ["else" Stmt]
+*/
+class SimpleStmtAST : public BaseAST {
+ public:
+  enum sstmt_t { storelval, ret, expr, block, nullexp, nullret };
+  sstmt_t st;
   unique_ptr<BaseAST> lval;
   unique_ptr<BaseAST> exp;
   unique_ptr<BaseAST> blk;
@@ -315,9 +367,6 @@ class UnaryExpAST : public BaseAST {
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
-
- private:
-  const char* type() const;
 };
 
 // MulExp      ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;

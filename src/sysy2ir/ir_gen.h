@@ -15,7 +15,7 @@ namespace ir {
 
 // Tagged Enums
 struct RetInfo {
-  enum RetTy { ty_void, ty_int, ty_sbl } ty;
+  enum retty_t { ty_void, ty_int, ty_sbl } ty;
   int value;
   string name;
   RetInfo();
@@ -23,6 +23,19 @@ struct RetInfo {
   RetInfo(string symbol);
   const int& GetValue() const;
   const string& GetSym() const;
+  const string GetInfo() const;
+};
+
+// if可能的类型：单if或if-else
+struct IfInfo {
+  enum ifty_t { i, ie } ty;
+  int then_label;
+  int else_label;
+  int next_label;
+  IfInfo();
+  IfInfo(ifty_t ty);
+  IfInfo(int then, int next);
+  IfInfo(int then, int _else, int next);
 };
 
 class IRGenerator {
@@ -34,19 +47,18 @@ class IRGenerator {
 
  public:
   static IRGenerator& getInstance();
-  int variable_pool;
-  string function_name;
-  string return_type;
+  string funcName;
+  string returnType;
   GenSettings setting;
   SymbolManager sbmanager;
-  RetInfo function_retInfo;
+  RetInfo funcRetInfo;
 
   // 生成函数开头
   void WriteFuncPrologue();
   // 生成函数屁股
   void WriteFuncEpilogue();
-  // 生成块开头
-  void WriteBlockPrologue();
+  // 生成返回指令
+  void WriteRetInst();
 
 #pragma region lv3
 
@@ -73,11 +85,32 @@ class IRGenerator {
 
 #pragma endregion
 
+#pragma region lv6
+
+  // 本块中已经返回过
+  bool hasRetThisBB;
+  // 生成块开头（仅标签）
+  void WriteBasicBlockPrologue(const int& bb_id);
+  // 生成if判断指令（br），label存在Ifinfo中
+  void WriteBrInst(const RetInfo& cond, IfInfo& info);
+  // 生成无条件跳转
+  void WriteJumpInst(const int& labelID);
+  void WriteJumpInst(const string& labelName);
+  // 生成标签（%label_n: ）并刷新块返回状态，进入新块
+  void WriteLabel(const int& labelID);
+  void WriteLabel(const string& labelName);
+
+#pragma endregion
+
  private:
+  // 变量ID
+  int variablePool;
+  // 基本块ID
+  int bbPool;
   int registerNewSymbol();
-  string getSymbolName(const int& symbol) const;
-  // 解析RetInfo
-  const string parseRetInfo(const RetInfo& info) const;
+  int registerNewBB();
+  const string getSymbolName(const int& symbol) const;
+  const string getLabelName(const int& bb_id) const;
   // 计算常数表达式
   int calcConstExpr(const int& left, const int& right, OpID op);
 };

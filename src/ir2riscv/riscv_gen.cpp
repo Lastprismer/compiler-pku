@@ -152,6 +152,8 @@ StackMemoryModule::StackMemoryModule()
 
 #pragma endregion
 
+#pragma region RiscvGen
+
 RiscvGenerator::RiscvGenerator() {
   Setting.setOs(cout).setIndent(0);
   FunctionName = "";
@@ -217,82 +219,56 @@ void RiscvGenerator::WriteBinaInst(OpType op,
 
   switch (op) {
     case koopa_raw_binary_op::KOOPA_RBO_NOT_EQ:
-#pragma region neq
       neq(os, left, left, right);
       break;
-#pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_EQ:
-#pragma region eq
       eq(os, left, left, right);
       break;
-#pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_GT:
-#pragma region sgt
       sgt(os, left, left, right);
       break;
-#pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_LT:
-#pragma region slt
       slt(os, left, left, right);
       break;
-#pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_GE:
-#pragma region sge
       sge(os, left, left, right);
       break;
-#pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_LE:
-#pragma region sle
       sle(os, left, left, right);
       break;
-#pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_ADD:
-#pragma region add
       add(os, left, left, right);
       break;
-#pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_SUB:
-#pragma region sub
       sub(os, left, left, right);
       break;
-#pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_MUL:
-#pragma region mul
       mul(os, left, left, right);
       break;
-#pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_DIV:
-#pragma region div
       div(os, left, left, right);
       break;
-#pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_MOD:
-#pragma region mod
       rem(os, left, left, right);
       break;
-#pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_AND:
-#pragma region and
       andr(os, left, left, right);
       break;
-#pragma endregion
 
     case koopa_raw_binary_op::KOOPA_RBO_OR:
-#pragma region or
       orr(os, left, left, right);
       break;
-#pragma endregion
 
     default:
       cerr << op;
@@ -300,5 +276,7 @@ void RiscvGenerator::WriteBinaInst(OpType op,
       assert(false);
   }
 }
+
+#pragma endregion
 
 }  // namespace riscv

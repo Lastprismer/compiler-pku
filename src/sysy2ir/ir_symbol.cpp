@@ -84,7 +84,7 @@ string SymbolTableEntry::GetStoreInst(int imm) const {
   }
 }
 
-SymbolTable::SymbolTable(int ly) : table(), layer(ly), parent(nullptr) {}
+SymbolTable::SymbolTable(int ID) : table(), id(ID), parent(nullptr) {}
 
 bool SymbolTable::TryGetEntry(string symbol_name, SymbolTableEntry& out) const {
   if (table.find(symbol_name) != table.end()) {
@@ -158,14 +158,14 @@ SymbolTableEntry DeclaimProcessor::GenerateConstEntry(string var_name,
   assert(IsEnabled() && _current_symbol_type == SymbolType::CONST &&
          _current_var_type != VarType::UNUSED);
   return SymbolTableEntry(SymbolType::CONST, _current_var_type, var_name, value,
-                          manager->currentTable->layer);
+                          manager->currentTable->id);
 }
 
 SymbolTableEntry DeclaimProcessor::GenerateVarEntry(string var_name) {
   assert(IsEnabled() && _current_symbol_type != SymbolType::UNUSED &&
          _current_var_type != VarType::UNUSED);
   return SymbolTableEntry(_current_symbol_type, _current_var_type, var_name,
-                          manager->currentTable->layer);
+                          manager->currentTable->id);
 }
 
 #pragma endregion
@@ -180,7 +180,8 @@ const string& AssignmentProcessor::GetCurrentVar() const {
   return current_var_name;
 }
 
-SymbolManager::SymbolManager() : dproc(), aproc(), RootTable(0) {
+SymbolManager::SymbolManager()
+    : dproc(), aproc(), tableIDPool(0), RootTable(registerNewTable()) {
   currentTable = &RootTable;
   dproc.manager = this;
   aproc.manager = this;
@@ -211,7 +212,7 @@ void SymbolManager::InsertEntry(SymbolTableEntry entry) {
 }
 
 void SymbolManager::PushScope() {
-  SymbolTable* tmp = new SymbolTable(currentTable->layer + 1);
+  SymbolTable* tmp = new SymbolTable(registerNewTable());
   tmp->parent = currentTable;
   currentTable = tmp;
 }
@@ -220,6 +221,10 @@ void SymbolManager::PopScope() {
   SymbolTable* tmp = currentTable;
   currentTable = currentTable->parent;
   delete tmp;
+}
+
+int SymbolManager::registerNewTable() {
+  return tableIDPool++;
 }
 
 }  // namespace ir
