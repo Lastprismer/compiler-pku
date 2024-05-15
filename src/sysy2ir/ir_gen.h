@@ -106,10 +106,10 @@ class IRGenerator {
  private:
   // 临时符号ID
   int symbolPool;
-  // 具名符号ID
-  int varPool;
-  int registerNewSymbol();
-  int registerNewBB();
+  int bbPool;
+  const int registerNewSymbol();
+  const int registerNewBB();
+  const int registerNewVar();
   const string getSymbolName(const int& symbol) const;
   const string getLabelName(const int& bb_id) const;
   // 计算常数表达式

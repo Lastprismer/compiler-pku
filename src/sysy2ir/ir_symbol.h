@@ -15,12 +15,13 @@ enum class VarType { UNUSED, INT };
 
 struct SymbolTableEntry {
   // 常数或变量
-  SymbolType symbol_type;
+  SymbolType symbolType;
   // 变量类型
-  VarType var_type;
-  string VarName;
-
+  VarType varType;
+  // 懒得union
+  string varName;
   int value;
+
   int id;
   SymbolTableEntry();
   SymbolTableEntry(SymbolType symbol_ty,
@@ -33,14 +34,14 @@ struct SymbolTableEntry {
                    string var_name,
                    int layer);
   // @ + name
-  string GetAllocName() const;
+  const string GetAllocName() const;
   // 声明的指令
-  string GetAllocInst() const;
+  const string GetAllocInst() const;
   // 加载的指令
-  string GetLoadInst(string in_sym_name) const;
+  const string GetLoadInst(const string& loadToSymbolName) const;
   // 赋值的指令
-  string GetStoreInst(string from_sym_name) const;
-  string GetStoreInst(int imm) const;
+  const string GetStoreInst(const string& storeFromSymbolName) const;
+  const string GetStoreInst(const int& imm) const;
 };
 
 class BaseProcessor {
@@ -48,7 +49,6 @@ class BaseProcessor {
   bool _enable;
 
  public:
-  SymbolManager* manager;
   BaseProcessor();
   void Enable();
   void Disable();
@@ -57,23 +57,27 @@ class BaseProcessor {
 class DeclaimProcessor : public BaseProcessor {
  private:
   // 保证只在处理声明的语句时启用
-  SymbolType CurrentSymbolType;
-  VarType CurrentVarType;
+  SymbolType currentSymbolType;
+  VarType currentVarType;
+  int varPool;
 
  public:
   DeclaimProcessor();
-  void SetSymbolType(SymbolType type);
-  void SetVarType(VarType type);
+  void SetSymbolType(const SymbolType& type);
+  void SetVarType(const VarType& type);
   // 重置
   void resetState();
   // 生成常数变量表项
-  SymbolTableEntry GenerateConstEntry(string varName, int value);
+  SymbolTableEntry GenerateConstEntry(const string& varName, const int& value);
   // 生成无初始化的变量表项
-  SymbolTableEntry GenerateVarEntry(string varName);
+  SymbolTableEntry GenerateVarEntry(const string& varName);
   // 即时生成表项
-  SymbolTableEntry QuickGenEntry(SymbolType st, VarType vt, string name);
+  SymbolTableEntry QuickGenEntry(const SymbolType& st,
+                                 const VarType& vt,
+                                 string name);
   // 获取当前正在初始化的变量的类型（逻辑运算的编译时常数用）
   const SymbolType& getCurSymType() const;
+  const int RegisterVar();
 };
 
 class AssignmentProcessor : public BaseProcessor {
@@ -91,8 +95,7 @@ class SymbolTable {
  public:
   // 表
   map<string, SymbolTableEntry> table;
-  int id;
-  SymbolTable(int ID);
+  SymbolTable();
   // utility
   bool TryGetEntry(string _symbol_name, SymbolTableEntry& out) const;
   void InsertEntry(const SymbolTableEntry& entry);
@@ -110,7 +113,6 @@ class SymbolManager {
   AssignmentProcessor aproc;
 
   // lv5
-  int tableIDPool;
   // 根表
   SymbolTable RootTable;
   // 当前的表
@@ -121,15 +123,13 @@ class SymbolManager {
   DeclaimProcessor& getDProc();
   AssignmentProcessor& getAProc();
   // 递归从当前的表向根表查询
-  const SymbolTableEntry getEntry(string _symbol_name);
+  const SymbolTableEntry getEntry(string symbolName);
   // 向当前的表插入
   void InsertEntry(SymbolTableEntry entry);
   // 推入一个新表
   void PushScope();
   // 弹出一个表
   void PopScope();
-  // 分配一个新表ID
-  int registerNewTable();
 };
 
 }  // namespace ir

@@ -53,7 +53,6 @@ IfInfo::IfInfo(int then, int _else, int next)
 IRGenerator::IRGenerator() : symbolman() {
   setting.setOs(cout).setIndent(0);
 
-  varPool = 0;
   symbolPool = 0;
   hasRetThisBB = false;
   funcName = "";
@@ -221,15 +220,19 @@ void IRGenerator::WriteLabel(const string& labelName) {
 }
 
 const string IRGenerator::registerShortCircuitVar() {
-  return string("if_") + to_string(registerNewSymbol());
+  return string("if_") + to_string(registerNewVar());
 }
 
-int IRGenerator::registerNewSymbol() {
+const int IRGenerator::registerNewSymbol() {
   return symbolPool++;
 }
 
-int IRGenerator::registerNewBB() {
-  return varPool++;
+const int IRGenerator::registerNewBB() {
+  return bbPool++;
+}
+
+const int IRGenerator::registerNewVar() {
+  return symbolman.dproc.RegisterVar();
 }
 
 #pragma endregion

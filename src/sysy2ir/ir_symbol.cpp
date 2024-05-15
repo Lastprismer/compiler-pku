@@ -2,19 +2,19 @@
 
 namespace ir {
 
-#pragma region Symbol Table
+#pragma region STE
 
 SymbolTableEntry::SymbolTableEntry()
-    : symbol_type(SymbolType::UNUSED), var_type(VarType::UNUSED), id(-1) {}
+    : symbolType(SymbolType::UNUSED), varType(VarType::UNUSED), id(-1) {}
 
 SymbolTableEntry::SymbolTableEntry(SymbolType _stype,
                                    VarType _vtype,
                                    string _var_name,
                                    int _const_value,
                                    int uuid)
-    : symbol_type(_stype),
-      var_type(_vtype),
-      VarName(_var_name),
+    : symbolType(_stype),
+      varType(_vtype),
+      varName(_var_name),
       value(_const_value),
       id(uuid) {}
 
@@ -22,15 +22,15 @@ SymbolTableEntry::SymbolTableEntry(SymbolType _stype,
                                    VarType _vtype,
                                    string _var_name,
                                    int uuid)
-    : symbol_type(_stype), var_type(_vtype), VarName(_var_name), id(uuid) {}
+    : symbolType(_stype), varType(_vtype), varName(_var_name), id(uuid) {}
 
-string SymbolTableEntry::GetAllocName() const {
-  return "@" + VarName + '_' + std::to_string(id);
+const string SymbolTableEntry::GetAllocName() const {
+  return "@" + varName + '_' + std::to_string(id);
 }
 
-string SymbolTableEntry::GetAllocInst() const {
-  assert(symbol_type == SymbolType::VAR);
-  if (var_type == VarType::INT) {
+const string SymbolTableEntry::GetAllocInst() const {
+  assert(symbolType == SymbolType::VAR);
+  if (varType == VarType::INT) {
     // int
     // @x = alloc i32
     stringstream ss;
@@ -42,13 +42,14 @@ string SymbolTableEntry::GetAllocInst() const {
   }
 }
 
-string SymbolTableEntry::GetLoadInst(string sym_name_loadto) const {
-  assert(symbol_type == SymbolType::VAR);
-  if (var_type == VarType::INT) {
+const string SymbolTableEntry::GetLoadInst(
+    const string& loadToSymbolName) const {
+  assert(symbolType == SymbolType::VAR);
+  if (varType == VarType::INT) {
     // int
     // %0 = load @x
     stringstream ss;
-    ss << sym_name_loadto << " = load " << GetAllocName();
+    ss << loadToSymbolName << " = load " << GetAllocName();
     return ss.str();
   } else {
     cerr << "[NOT SUPPORTED]" << endl;
@@ -56,13 +57,14 @@ string SymbolTableEntry::GetLoadInst(string sym_name_loadto) const {
   }
 }
 
-string SymbolTableEntry::GetStoreInst(string from_sym_name) const {
-  assert(symbol_type == SymbolType::VAR);
-  if (var_type == VarType::INT) {
+const string SymbolTableEntry::GetStoreInst(
+    const string& storeFromSymbolName) const {
+  assert(symbolType == SymbolType::VAR);
+  if (varType == VarType::INT) {
     // int
     // store %0, @x
     stringstream ss;
-    ss << "store " << from_sym_name << ", " << GetAllocName();
+    ss << "store " << storeFromSymbolName << ", " << GetAllocName();
     return ss.str();
   } else {
     cerr << "[NOT SUPPORTED]" << endl;
@@ -70,9 +72,9 @@ string SymbolTableEntry::GetStoreInst(string from_sym_name) const {
   }
 }
 
-string SymbolTableEntry::GetStoreInst(int imm) const {
-  assert(symbol_type == SymbolType::VAR);
-  if (var_type == VarType::INT) {
+const string SymbolTableEntry::GetStoreInst(const int& imm) const {
+  assert(symbolType == SymbolType::VAR);
+  if (varType == VarType::INT) {
     // int
     // store 0, @x
     stringstream ss;
@@ -84,7 +86,11 @@ string SymbolTableEntry::GetStoreInst(int imm) const {
   }
 }
 
-SymbolTable::SymbolTable(int ID) : table(), id(ID), parent(nullptr) {}
+#pragma endregion
+
+#pragma region Symbol Table
+
+SymbolTable::SymbolTable() : table(), parent(nullptr) {}
 
 bool SymbolTable::TryGetEntry(string symbol_name, SymbolTableEntry& out) const {
   if (table.find(symbol_name) != table.end()) {
@@ -95,16 +101,16 @@ bool SymbolTable::TryGetEntry(string symbol_name, SymbolTableEntry& out) const {
 }
 
 void SymbolTable::InsertEntry(const SymbolTableEntry& entry) {
-  if (table.find(entry.VarName) != table.end()) {
-    cerr << "Symbol Table insert error: symbol with name \"" << entry.VarName
+  if (table.find(entry.varName) != table.end()) {
+    cerr << "Symbol Table insert error: symbol with name \"" << entry.varName
          << "\" has already inserted in the table. It will be overwritten by "
             "default"
          << endl;
-    table[entry.VarName] = entry;
+    table[entry.varName] = entry;
     return;
   }
   // do actual insert
-  table.emplace(make_pair(entry.VarName, entry));
+  table.emplace(make_pair(entry.varName, entry));
 }
 
 void SymbolTable::ClearTable() {
@@ -135,47 +141,51 @@ const bool& BaseProcessor::IsEnabled() {
 
 DeclaimProcessor::DeclaimProcessor()
     : BaseProcessor(),
-      CurrentSymbolType(SymbolType::UNUSED),
-      CurrentVarType(VarType::UNUSED) {}
+      currentSymbolType(SymbolType::UNUSED),
+      currentVarType(VarType::UNUSED) {}
 
-void DeclaimProcessor::SetSymbolType(SymbolType type) {
+void DeclaimProcessor::SetSymbolType(const SymbolType& type) {
   assert(IsEnabled());
-  CurrentSymbolType = type;
+  currentSymbolType = type;
 }
 
-void DeclaimProcessor::SetVarType(VarType type) {
+void DeclaimProcessor::SetVarType(const VarType& type) {
   assert(IsEnabled());
-  CurrentVarType = type;
+  currentVarType = type;
 }
 
 void DeclaimProcessor::resetState() {
-  CurrentSymbolType = SymbolType::UNUSED;
-  CurrentVarType = VarType::UNUSED;
+  currentSymbolType = SymbolType::UNUSED;
+  currentVarType = VarType::UNUSED;
 }
 
-SymbolTableEntry DeclaimProcessor::GenerateConstEntry(string var_name,
-                                                      int value) {
-  assert(IsEnabled() && CurrentSymbolType == SymbolType::CONST &&
-         CurrentVarType != VarType::UNUSED);
-  return SymbolTableEntry(SymbolType::CONST, CurrentVarType, var_name, value,
-                          manager->currentTable->id);
+SymbolTableEntry DeclaimProcessor::GenerateConstEntry(const string& varName,
+                                                      const int& value) {
+  assert(IsEnabled() && currentSymbolType == SymbolType::CONST &&
+         currentVarType != VarType::UNUSED);
+  return SymbolTableEntry(SymbolType::CONST, currentVarType, varName, value,
+                          RegisterVar());
 }
 
-SymbolTableEntry DeclaimProcessor::GenerateVarEntry(string var_name) {
-  assert(IsEnabled() && CurrentSymbolType != SymbolType::UNUSED &&
-         CurrentVarType != VarType::UNUSED);
-  return SymbolTableEntry(CurrentSymbolType, CurrentVarType, var_name,
-                          manager->currentTable->id);
+SymbolTableEntry DeclaimProcessor::GenerateVarEntry(const string& varName) {
+  assert(IsEnabled() && currentSymbolType != SymbolType::UNUSED &&
+         currentVarType != VarType::UNUSED);
+  return SymbolTableEntry(currentSymbolType, currentVarType, varName,
+                          RegisterVar());
 }
 
-SymbolTableEntry DeclaimProcessor::QuickGenEntry(SymbolType st,
-                                                 VarType vt,
+SymbolTableEntry DeclaimProcessor::QuickGenEntry(const SymbolType& st,
+                                                 const VarType& vt,
                                                  string name) {
-  return SymbolTableEntry(st, vt, name, manager->currentTable->id);
+  return SymbolTableEntry(st, vt, name, RegisterVar());
 }
 
 const SymbolType& DeclaimProcessor::getCurSymType() const {
-  return CurrentSymbolType;
+  return currentSymbolType;
+}
+
+const int DeclaimProcessor::RegisterVar() {
+  return varPool++;
 }
 
 #pragma endregion
@@ -194,11 +204,8 @@ const string& AssignmentProcessor::GetCurrentVar() const {
 
 #pragma endregion
 
-SymbolManager::SymbolManager()
-    : dproc(), aproc(), tableIDPool(0), RootTable(registerNewTable()) {
+SymbolManager::SymbolManager() : dproc(), aproc(), RootTable() {
   currentTable = &RootTable;
-  dproc.manager = this;
-  aproc.manager = this;
 }
 
 DeclaimProcessor& SymbolManager::getDProc() {
@@ -226,7 +233,7 @@ void SymbolManager::InsertEntry(SymbolTableEntry entry) {
 }
 
 void SymbolManager::PushScope() {
-  SymbolTable* tmp = new SymbolTable(registerNewTable());
+  SymbolTable* tmp = new SymbolTable();
   tmp->parent = currentTable;
   currentTable = tmp;
 }
@@ -235,10 +242,6 @@ void SymbolManager::PopScope() {
   SymbolTable* tmp = currentTable;
   currentTable = currentTable->parent;
   delete tmp;
-}
-
-int SymbolManager::registerNewTable() {
-  return tableIDPool++;
 }
 
 }  // namespace ir

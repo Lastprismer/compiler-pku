@@ -197,7 +197,7 @@ void VarDefAST::Dump() {
     init_val->Dump();
     auto iv = dynamic_cast<InitValAST*>(init_val.get());
     // 赋值，加入符号表
-    SymbolTableEntry s_entry = gen.symbolman.getEntry(entry.VarName);
+    SymbolTableEntry s_entry = gen.symbolman.getEntry(entry.varName);
     gen.WriteStoreInst(iv->thisRet, s_entry);
   }
 }
@@ -588,9 +588,9 @@ void LValAST::Dump() {
   // 判断变量类型
   SymbolTableEntry entry = gen.symbolman.getEntry(var_name);
 
-  if (entry.symbol_type == SymbolType::CONST) {
+  if (entry.symbolType == SymbolType::CONST) {
     // const只会是右值
-    if (entry.var_type == VarType::INT) {
+    if (entry.varType == VarType::INT) {
       // const int
       thisRet = RetInfo(entry.value);
     } else {
@@ -598,7 +598,7 @@ void LValAST::Dump() {
       assert(false);
     }
   } else {
-    if (entry.var_type == VarType::INT) {
+    if (entry.varType == VarType::INT) {
       // var int
       // 判断是左值还是右值
       if (gen.symbolman.aproc.IsEnabled()) {
