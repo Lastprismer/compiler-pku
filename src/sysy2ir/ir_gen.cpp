@@ -50,11 +50,11 @@ IfInfo::IfInfo(int then, int _else, int next)
 
 #pragma region IRGen - Class
 
-IRGenerator::IRGenerator() : sbmanager() {
+IRGenerator::IRGenerator() : symbolman() {
   setting.setOs(cout).setIndent(0);
 
-  bbPool = 0;
-  variablePool = 0;
+  varPool = 0;
+  symbolPool = 0;
   hasRetThisBB = false;
   funcName = "";
   returnType = "";
@@ -220,12 +220,16 @@ void IRGenerator::WriteLabel(const string& labelName) {
   hasRetThisBB = false;
 }
 
+const string IRGenerator::registerShortCircuitVar() {
+  return string("if_") + to_string(registerNewSymbol());
+}
+
 int IRGenerator::registerNewSymbol() {
-  return variablePool++;
+  return symbolPool++;
 }
 
 int IRGenerator::registerNewBB() {
-  return bbPool++;
+  return varPool++;
 }
 
 #pragma endregion

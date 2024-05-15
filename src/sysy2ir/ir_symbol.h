@@ -18,10 +18,10 @@ struct SymbolTableEntry {
   SymbolType symbol_type;
   // 变量类型
   VarType var_type;
-  string var_name;
+  string VarName;
 
   int value;
-  int layer;
+  int id;
   SymbolTableEntry();
   SymbolTableEntry(SymbolType symbol_ty,
                    VarType var_ty,
@@ -57,8 +57,8 @@ class BaseProcessor {
 class DeclaimProcessor : public BaseProcessor {
  private:
   // 保证只在处理声明的语句时启用
-  SymbolType _current_symbol_type;
-  VarType _current_var_type;
+  SymbolType CurrentSymbolType;
+  VarType CurrentVarType;
 
  public:
   DeclaimProcessor();
@@ -67,15 +67,19 @@ class DeclaimProcessor : public BaseProcessor {
   // 重置
   void resetState();
   // 生成常数变量表项
-  SymbolTableEntry GenerateConstEntry(string var_name, int value);
+  SymbolTableEntry GenerateConstEntry(string varName, int value);
   // 生成无初始化的变量表项
-  SymbolTableEntry GenerateVarEntry(string var_name);
+  SymbolTableEntry GenerateVarEntry(string varName);
+  // 即时生成表项
+  SymbolTableEntry QuickGenEntry(SymbolType st, VarType vt, string name);
+  // 获取当前正在初始化的变量的类型（逻辑运算的编译时常数用）
+  const SymbolType& getCurSymType() const;
 };
 
 class AssignmentProcessor : public BaseProcessor {
  private:
   // 保证只在处理赋值的语句时启用
-  string current_var_name;
+  string CurrentVarName;
 
  public:
   AssignmentProcessor();

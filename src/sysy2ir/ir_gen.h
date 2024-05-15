@@ -50,7 +50,7 @@ class IRGenerator {
   string funcName;
   string returnType;
   GenSettings setting;
-  SymbolManager sbmanager;
+  SymbolManager symbolman;
   RetInfo funcRetInfo;
 
   // 生成函数开头
@@ -99,14 +99,15 @@ class IRGenerator {
   // 生成标签（%label_n: ）并刷新块返回状态，进入新块
   void WriteLabel(const int& labelID);
   void WriteLabel(const string& labelName);
-
+  // 生成一个用于短路的变量名
+  const string registerShortCircuitVar();
 #pragma endregion
 
  private:
-  // 变量ID
-  int variablePool;
-  // 基本块ID
-  int bbPool;
+  // 临时符号ID
+  int symbolPool;
+  // 具名符号ID
+  int varPool;
   int registerNewSymbol();
   int registerNewBB();
   const string getSymbolName(const int& symbol) const;

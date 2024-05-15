@@ -53,7 +53,7 @@ void ConstDeclAST::Print(ostream& os, int indent) const {
 }
 
 void ConstDeclAST::Dump() {
-  DeclaimProcessor& processor = IRGenerator::getInstance().sbmanager.getDProc();
+  DeclaimProcessor& processor = IRGenerator::getInstance().symbolman.getDProc();
   processor.Enable();
   processor.SetSymbolType(SymbolType::CONST);
   btype->Dump();
@@ -85,7 +85,7 @@ void BTypeAST::Print(ostream& os, int indent) const {
 }
 
 void BTypeAST::Dump() {
-  IRGenerator::getInstance().sbmanager.dproc.SetVarType(VarType::INT);
+  IRGenerator::getInstance().symbolman.dproc.SetVarType(VarType::INT);
 }
 
 #pragma endregion
@@ -107,10 +107,10 @@ void ConstDefAST::Dump() {
   auto cv = dynamic_cast<ConstInitValAST*>(const_init_val.get());
 
   // 取值加入符号表
-  DeclaimProcessor& pcs = gen.sbmanager.getDProc();
+  DeclaimProcessor& pcs = gen.symbolman.getDProc();
   SymbolTableEntry entry =
       pcs.GenerateConstEntry(var_name, cv->thisRet.GetValue());
-  gen.sbmanager.InsertEntry(entry);
+  gen.symbolman.InsertEntry(entry);
 }
 
 #pragma endregion
@@ -146,7 +146,7 @@ void VarDeclAST::Print(ostream& os, int indent) const {
 }
 
 void VarDeclAST::Dump() {
-  DeclaimProcessor& processor = IRGenerator::getInstance().sbmanager.getDProc();
+  DeclaimProcessor& processor = IRGenerator::getInstance().symbolman.getDProc();
   processor.Enable();
   processor.SetSymbolType(SymbolType::VAR);
   btype->Dump();
@@ -186,18 +186,18 @@ void VarDefAST::Print(ostream& os, int indent) const {
 
 void VarDefAST::Dump() {
   IRGenerator& gen = IRGenerator::getInstance();
-  DeclaimProcessor& pcs = gen.sbmanager.getDProc();
+  DeclaimProcessor& pcs = gen.symbolman.getDProc();
 
   SymbolTableEntry entry = pcs.GenerateVarEntry(var_name);
   gen.WriteAllocInst(entry);
-  gen.sbmanager.InsertEntry(entry);
+  gen.symbolman.InsertEntry(entry);
   // 如果有初始化
   if (init_with_val) {
     // 类似常数的定义
     init_val->Dump();
     auto iv = dynamic_cast<InitValAST*>(init_val.get());
     // 赋值，加入符号表
-    SymbolTableEntry s_entry = gen.sbmanager.getEntry(entry.var_name);
+    SymbolTableEntry s_entry = gen.symbolman.getEntry(entry.VarName);
     gen.WriteStoreInst(iv->thisRet, s_entry);
   }
 }
@@ -524,7 +524,7 @@ void SimpleStmtAST::Print(ostream& os, int indent) const {
 void SimpleStmtAST::Dump() {
   IRGenerator& gen = IRGenerator::getInstance();
   if (st == sstmt_t::storelval) {
-    AssignmentProcessor& aproc = gen.sbmanager.getAProc();
+    AssignmentProcessor& aproc = gen.symbolman.getAProc();
     // 记录左值
     aproc.Enable();
     lval->Dump();
@@ -536,7 +536,7 @@ void SimpleStmtAST::Dump() {
 
     // 赋值
     gen.WriteStoreInst(ee->thisRet,
-                       gen.sbmanager.getEntry(aproc.GetCurrentVar()));
+                       gen.symbolman.getEntry(aproc.GetCurrentVar()));
   } else if (st == sstmt_t::ret) {
     exp->Dump();
     auto ee = dynamic_cast<ExpAST*>(exp.get());
@@ -547,9 +547,9 @@ void SimpleStmtAST::Dump() {
     // 不记录值
     exp->Dump();
   } else if (st == block) {
-    gen.sbmanager.PushScope();
+    gen.symbolman.PushScope();
     blk->Dump();
-    gen.sbmanager.PopScope();
+    gen.symbolman.PopScope();
   } else if (st == sstmt_t::nullexp) {
   } else if (st == sstmt_t::nullret) {
     gen.funcRetInfo = RetInfo();
@@ -586,7 +586,7 @@ void LValAST::Print(ostream& os, int indent) const {
 void LValAST::Dump() {
   IRGenerator& gen = IRGenerator::getInstance();
   // 判断变量类型
-  SymbolTableEntry entry = gen.sbmanager.getEntry(var_name);
+  SymbolTableEntry entry = gen.symbolman.getEntry(var_name);
 
   if (entry.symbol_type == SymbolType::CONST) {
     // const只会是右值
@@ -601,9 +601,9 @@ void LValAST::Dump() {
     if (entry.var_type == VarType::INT) {
       // var int
       // 判断是左值还是右值
-      if (gen.sbmanager.aproc.IsEnabled()) {
+      if (gen.symbolman.aproc.IsEnabled()) {
         // 为左值，设置aproc处理当前符号
-        AssignmentProcessor& aproc = gen.sbmanager.getAProc();
+        AssignmentProcessor& aproc = gen.symbolman.getAProc();
         aproc.SetCurrentVar(var_name);
       } else {
         // 为右值，获取其临时符号
@@ -1053,14 +1053,51 @@ void LAndExpAST::Print(ostream& os, int indent) const {
 }
 
 void LAndExpAST::Dump() {
+  auto& gen = IRGenerator::getInstance();
+  auto& pcs = gen.symbolman.getDProc();
   if (laex == laex_t::LAOPEq) {
-    laexp->Dump();
-    eexp->Dump();
-
     auto la = dynamic_cast<LAndExpAST*>(laexp.get());
     auto eq = dynamic_cast<EqExpAST*>(eexp.get());
-    thisRet = IRGenerator::getInstance().WriteLogicInst(
-        la->thisRet, eq->thisRet, OpID::LG_AND);
+
+    if (pcs.IsEnabled() && pcs.getCurSymType() == SymbolType::CONST) {
+      laexp->Dump();
+      eexp->Dump();
+      thisRet = IRGenerator::getInstance().WriteLogicInst(
+          la->thisRet, eq->thisRet, OpID::LG_AND);
+      return;
+    }
+
+    /*
+      int result = lhs != 0;
+      if (lhs != 0) {
+        result = rhs != 0;
+      }
+    */
+
+    // int result = lhs != 0;
+    laexp->Dump();
+    auto entry = pcs.QuickGenEntry(SymbolType::VAR, VarType::INT,
+                                   gen.registerShortCircuitVar());
+    gen.WriteAllocInst(entry);
+    RetInfo lhsNeZero =
+        gen.WriteBinaryInst(la->thisRet, RetInfo(0), OpID::LG_NEQ);
+    gen.WriteStoreInst(lhsNeZero, entry);
+
+    // if (lhs != 0) {
+    IfInfo ifinfo(IfInfo::i);
+    gen.WriteBrInst(lhsNeZero, ifinfo);
+
+    // result = rhs != 0;
+    gen.WriteLabel(ifinfo.then_label);
+    eexp->Dump();
+    RetInfo rhsNeZero =
+        gen.WriteBinaryInst(eq->thisRet, RetInfo(0), OpID::LG_NEQ);
+    gen.WriteStoreInst(rhsNeZero, entry);
+    gen.WriteJumpInst(ifinfo.next_label);
+
+    // load return
+    gen.WriteLabel(ifinfo.next_label);
+    thisRet = gen.WriteLoadInst(entry);
 
   } else {
     eexp->Dump();
@@ -1105,14 +1142,51 @@ void LOrExpAST::Print(ostream& os, int indent) const {
 }
 
 void LOrExpAST::Dump() {
+  auto& gen = IRGenerator::getInstance();
+  auto& pcs = gen.symbolman.getDProc();
   if (loex == loex_t::LOOPLA) {
-    loexp->Dump();
-    laexp->Dump();
-
     auto la = dynamic_cast<LAndExpAST*>(laexp.get());
     auto lo = dynamic_cast<LOrExpAST*>(loexp.get());
-    thisRet = IRGenerator::getInstance().WriteLogicInst(
-        lo->thisRet, la->thisRet, OpID::LG_OR);
+
+    if (pcs.IsEnabled() && pcs.getCurSymType() == SymbolType::CONST) {
+      loexp->Dump();
+      laexp->Dump();
+      thisRet = gen.WriteLogicInst(la->thisRet, lo->thisRet, OpID::LG_OR);
+      return;
+    }
+
+    /*
+      int result = lhs != 0;
+      if (lhs == 0) {
+        result = rhs != 0;
+      }
+    */
+
+    // int result = lhs;
+    loexp->Dump();
+    auto entry = pcs.QuickGenEntry(SymbolType::VAR, VarType::INT,
+                                   gen.registerShortCircuitVar());
+    gen.WriteAllocInst(entry);
+    RetInfo lhsNeZero =
+        gen.WriteBinaryInst(lo->thisRet, RetInfo(0), OpID::LG_NEQ);
+    gen.WriteStoreInst(lhsNeZero, entry);
+
+    // if (lhs == 0) {
+    IfInfo ifinfo(IfInfo::i);
+    RetInfo lhsEqZero = gen.WriteUnaryInst(lhsNeZero, OpID::UNARY_NOT);
+    gen.WriteBrInst(lhsEqZero, ifinfo);
+
+    // result = rhs != 0;
+    gen.WriteLabel(ifinfo.then_label);
+    laexp->Dump();
+    RetInfo rhsNeZero =
+        gen.WriteBinaryInst(la->thisRet, RetInfo(0), OpID::LG_NEQ);
+    gen.WriteStoreInst(rhsNeZero, entry);
+    gen.WriteJumpInst(ifinfo.next_label);
+
+    // load return
+    gen.WriteLabel(ifinfo.next_label);
+    thisRet = gen.WriteLoadInst(entry);
 
   } else {
     laexp->Dump();

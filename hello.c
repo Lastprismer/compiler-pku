@@ -1,10 +1,11 @@
 int main() {
   int a = 1, b = 0;
   if (a || b) {
-    return 0;
+    b = 1;
+    a = 0;
   }
   if (a && b) {
-    return 55;
+    return 0;
   }
-  return 199;
+  return 77;
 }
