@@ -89,6 +89,18 @@ void orr(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2) {
      << endl;
 }
 
+void j(ostream& os, const string& label) {
+  os << "  j " << label << endl;
+}
+
+void bnez(ostream& os, const Reg& reg, const string& label) {
+  os << "  bnez " << regstr(reg) << ", " << label << endl;
+}
+
+void beqz(ostream& os, const Reg& reg, const string& label) {
+  os << "  beqz " << regstr(reg) << ", " << label << endl;
+}
+
 const char* regstr(Reg reg) {
   switch (reg) {
     case t0:
@@ -175,6 +187,10 @@ void eq(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2) {
 void neq(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2) {
   xorr(os, rd, rs1, rs2);
   snez(os, rd, rd);
+}
+
+void wlabel(ostream& os, const string& label) {
+  os << "\n" << label << ":" << endl;
 }
 
 }  // namespace riscv

@@ -21,7 +21,7 @@ string sysy2ir(const char* input, const char* output, bool output2file) {
   ast->Print(out, 0);
   ast->Dump();
 
-  if (false) {
+  if (true) {
     cout << "Structure: \n" << out.str() << endl;
     cout << "IR code:\n" << cou.str() << endl;
   } else {

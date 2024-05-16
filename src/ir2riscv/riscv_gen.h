@@ -77,6 +77,19 @@ class StackMemoryModule : public BaseModule {
   int StackUsed;
 };
 
+class BBModule : public BaseModule {
+ private:
+ public:
+  BBModule();
+  void WriteBBName(const string& label);
+
+  void WriteJumpInst(const string& label);
+
+  void WriteBranch(const Reg& cond,
+                   const string& trueLabel,
+                   const string& falseLabel);
+};
+
 class RiscvGenerator {
  private:
   RiscvGenerator();
@@ -88,7 +101,8 @@ class RiscvGenerator {
   string FunctionName;
   GenSettings Setting;
   RegisterModule RegManager;
-  StackMemoryModule StackMemManager;
+  StackMemoryModule smem;
+  BBModule BBMan;
   static RiscvGenerator& getInstance();
 
   // 生成函数开头

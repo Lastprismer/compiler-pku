@@ -47,6 +47,12 @@ void visit_inst_store(const koopa_raw_value_t& inst);
 // 访问二元运算
 void visit_inst_binary(const koopa_raw_value_t& inst);
 
+// 访问分支
+void visit_inst_branch(const koopa_raw_value_t& inst);
+
+// 访问跳转
+void visit_inst_jump(const koopa_raw_value_t& inst);
+
 // 访问ret
 void visit_inst_ret(const koopa_raw_return_t& inst_ret);
 

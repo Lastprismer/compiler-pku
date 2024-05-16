@@ -47,6 +47,7 @@ typedef enum riscv_registers_enum_t {
 
 // 将具名符号或临时符号名称删去头部字符
 const char* ParseSymbol(const char* symbol_name);
+const std::string ParseSymbol(const std::string& symbolName);
 
 // 获取koopa_raw_binary_op对应的符号的字符串
 const char* GetBinaryOPString(koopa_raw_binary_op_t opt);

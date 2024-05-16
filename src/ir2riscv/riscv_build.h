@@ -88,6 +88,18 @@ void andr(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2);
 // 行为：rd = rs1 || rs2
 void orr(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2);
 
+// 语法：j {label}
+// 行为：无条件跳转到label
+void j(ostream& os, const string& label);
+
+// 语法：bnez {reg}, {label}
+// 行为：判断reg的值，如果不为0则跳转到目标，否则继续执行下一条指令
+void bnez(ostream& os, const Reg& reg, const string& label);
+
+// 语法：beqz {reg}, {label}
+// 行为：判断reg的值，如果为0则跳转到目标，否则继续执行下一条指令
+void beqz(ostream& os, const Reg& reg, const string& label);
+
 /* --- 辅助函数 ---*/
 
 const char* regstr(Reg reg);
@@ -103,5 +115,8 @@ void eq(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2);
 
 // 最终行为：rd = rs1 != rs2
 void neq(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2);
+
+// 打印label和前一个空行
+void wlabel(ostream& os, const string& label);
 
 }  // namespace riscv

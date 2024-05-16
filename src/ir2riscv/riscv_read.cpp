@@ -42,11 +42,11 @@ void visit_func(const koopa_raw_function_t& func) {
   // 访问所有基本块
   RiscvGenerator& gen = RiscvGenerator::getInstance();
   gen.FunctionName = ParseSymbol(func->name);
-  gen.StackMemManager.Activate();
+  gen.smem.Activate();
   CalcMemoryNeeded(func);
   gen.WritePrologue();
   visit_slice(func->bbs);
-  gen.StackMemManager.Deactivate();
+  gen.smem.Deactivate();
 }
 
 void visit_basic_block(const koopa_raw_basic_block_t& bb) {
@@ -54,6 +54,8 @@ void visit_basic_block(const koopa_raw_basic_block_t& bb) {
   // ...
   // 访问所有指令
   // os << "basic block: name: " << bb->name << endl;
+  auto& gen = RiscvGenerator::getInstance();
+  gen.BBMan.WriteBBName(bb->name);
   visit_slice(bb->insts);
 }
 
@@ -83,6 +85,14 @@ void visit_value(const koopa_raw_value_t& value) {
       cout << "  binary" << endl;
       visit_inst_binary(value);
       break;
+    case KOOPA_RVT_BRANCH:
+      cout << "  branch" << endl;
+      visit_inst_branch(value);
+      break;
+    case KOOPA_RVT_JUMP:
+      cout << "  jump" << endl;
+      visit_inst_jump(value);
+      break;
     case KOOPA_RVT_RETURN:
       cout << "  ret" << endl;
       visit_inst_ret(kind.data.ret);
@@ -94,6 +104,8 @@ void visit_value(const koopa_raw_value_t& value) {
   }
 }
 
+#pragma region visit inst
+
 void visit_inst_int(const koopa_raw_integer_t& inst_int) {
   cerr << "NOT EXPECTED" << endl;
 }
@@ -104,7 +116,7 @@ void visit_inst_alloc(const koopa_raw_value_t& value) {
 
 void visit_inst_load(const koopa_raw_value_t& inst_load) {
   RiscvGenerator& gen = RiscvGenerator::getInstance();
-  StackMemoryModule& smem = gen.StackMemManager;
+  StackMemoryModule& smem = gen.smem;
   if (smem.InstResult.find(inst_load->kind.data.load.src) !=
       smem.InstResult.end()) {
     smem.InstResult[inst_load] = smem.InstResult[inst_load->kind.data.load.src];
@@ -116,7 +128,7 @@ void visit_inst_load(const koopa_raw_value_t& inst_load) {
 void visit_inst_store(const koopa_raw_value_t& inst) {
   const koopa_raw_store_t& inst_store = inst->kind.data.store;
   RiscvGenerator& gen = RiscvGenerator::getInstance();
-  StackMemoryModule& smem = gen.StackMemManager;
+  StackMemoryModule& smem = gen.smem;
   StackMemoryModule::InstResultInfo dst, src;
   if (smem.InstResult.find(inst_store.dest) != smem.InstResult.end()) {
     dst = smem.InstResult[inst_store.dest];
@@ -146,7 +158,7 @@ void visit_inst_store(const koopa_raw_value_t& inst) {
 void visit_inst_binary(const koopa_raw_value_t& inst) {
   const koopa_raw_binary_t& inst_bina = inst->kind.data.binary;
   RiscvGenerator& gen = RiscvGenerator::getInstance();
-  auto& smem = gen.StackMemManager;
+  auto& smem = gen.smem;
   Reg r1 = GetValueResult(inst_bina.lhs);
   Reg r2 = GetValueResult(inst_bina.rhs);
   RiscvGenerator::getInstance().WriteBinaInst(inst_bina.op, r1, r2);
@@ -165,9 +177,29 @@ void visit_inst_binary(const koopa_raw_value_t& inst) {
   smem.InstResult[inst] = dst;
 }
 
+void visit_inst_branch(const koopa_raw_value_t& inst) {
+  auto& gen = RiscvGenerator::getInstance();
+  auto smem = gen.smem;
+  auto branch = inst->kind.data.branch;
+  Reg cond = GetValueResult(branch.cond);
+  gen.BBMan.WriteBranch(cond, string(branch.true_bb->name),
+                        string(branch.false_bb->name));
+
+  if (smem.InstResult.find(branch.cond) != smem.InstResult.end() ||
+      branch.cond->kind.tag == KOOPA_RVT_INTEGER) {  // 保存过或是立即数
+    // cond是临时分配的
+    gen.RegManager.releaseReg(cond);
+  }
+}
+
+void visit_inst_jump(const koopa_raw_value_t& inst) {
+  auto& gen = RiscvGenerator::getInstance();
+  gen.BBMan.WriteJumpInst(inst->kind.data.jump.target->name);
+}
+
 void visit_inst_ret(const koopa_raw_return_t& inst_ret) {
   RiscvGenerator& gen = RiscvGenerator::getInstance();
-  auto& instResult = gen.StackMemManager.InstResult;
+  auto& instResult = gen.smem.InstResult;
   StackMemoryModule::InstResultInfo info;
 
   if (instResult.find(inst_ret.value) != instResult.end())
@@ -178,6 +210,10 @@ void visit_inst_ret(const koopa_raw_return_t& inst_ret) {
   }
   gen.WriteEpilogue(info);
 }
+
+#pragma endregion
+
+#pragma region util
 
 void CalcMemoryNeeded(const koopa_raw_function_t& func) {
   int allocSize = 0;
@@ -203,13 +239,13 @@ void CalcMemoryNeeded(const koopa_raw_function_t& func) {
   // 向上进位到16
   std::cout << "allocSize: " << allocSize << std::endl;
   allocSize = (allocSize + 15) / 16 * 16;
-  RiscvGenerator::getInstance().StackMemManager.SetStackMem(allocSize);
+  RiscvGenerator::getInstance().smem.SetStackMem(allocSize);
   return;
 }
 
 Reg GetValueResult(const koopa_raw_value_t& value) {
   RiscvGenerator& gen = RiscvGenerator::getInstance();
-  auto& smem = gen.StackMemManager;
+  auto& smem = gen.smem;
   if (value->kind.tag == KOOPA_RVT_INTEGER) {
     // 处理常数
     Reg rs = gen.RegManager.getAvailableReg();
@@ -232,5 +268,7 @@ Reg GetValueResult(const koopa_raw_value_t& value) {
   }
   assert(false);
 }
+
+#pragma endregion
 
 }  // namespace riscv

@@ -81,7 +81,7 @@ StackMemoryModule::StoreInfo::StoreInfo(const InstResultInfo& dstInfo,
 
 void StackMemoryModule::WriteStoreInst(const StoreInfo& info) {
   RiscvGenerator& gen = RiscvGenerator::getInstance();
-  StackMemoryModule smem = gen.StackMemManager;
+  StackMemoryModule smem = gen.smem;
   ostream& os = gen.Setting.getOs();
   switch (info.src.ty) {
     case StackMemoryModule::ValueType::imm:
@@ -154,7 +154,7 @@ StackMemoryModule::StackMemoryModule()
 
 #pragma region RiscvGen
 
-RiscvGenerator::RiscvGenerator() {
+RiscvGenerator::RiscvGenerator() : smem(), BBMan() {
   Setting.setOs(cout).setIndent(0);
   FunctionName = "";
   RegManager = RegisterModule();
@@ -172,7 +172,7 @@ void RiscvGenerator::WritePrologue() {
   os << FunctionName << ":" << endl;
 
   // 分配栈内存
-  int stackMemoryAlloc = StackMemManager.GetStackMem();
+  int stackMemoryAlloc = smem.GetStackMem();
   if (stackMemoryAlloc == 0)
     return;
   if (IsImmInBound(-stackMemoryAlloc)) {
@@ -198,7 +198,7 @@ void RiscvGenerator::WriteEpilogue(
   }
 
   // 回收栈内存
-  int stackMemoryAlloc = StackMemManager.GetStackMem();
+  int stackMemoryAlloc = smem.GetStackMem();
   if (stackMemoryAlloc != 0) {
     if (IsImmInBound(stackMemoryAlloc)) {
       addi(os, Reg::sp, Reg::sp, stackMemoryAlloc);
@@ -278,5 +278,29 @@ void RiscvGenerator::WriteBinaInst(OpType op,
 }
 
 #pragma endregion
+
+BBModule::BBModule() {}
+
+void BBModule::WriteBBName(const string& label) {
+  ostream& os = RiscvGenerator::getInstance().Setting.getOs();
+  wlabel(os, ParseSymbol(label));
+}
+
+void BBModule::WriteJumpInst(const string& label) {
+  ostream& os = RiscvGenerator::getInstance().Setting.getOs();
+  j(os, ParseSymbol(label));
+}
+
+void BBModule::WriteBranch(const Reg& cond,
+                           const string& trueLabel,
+                           const string& falseLabel) {
+  ostream& os = RiscvGenerator::getInstance().Setting.getOs();
+  const string trueMid = ParseSymbol(trueLabel) + "_mid";
+  bnez(os, cond, trueMid);
+  // 否则跳到false
+  j(os, ParseSymbol(falseLabel));
+  wlabel(os, trueMid);
+  j(os, ParseSymbol(trueLabel));
+}
 
 }  // namespace riscv

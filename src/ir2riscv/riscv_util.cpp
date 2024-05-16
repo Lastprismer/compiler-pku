@@ -7,6 +7,10 @@ const char* ParseSymbol(const char* symbol_name) {
   return symbol_name + 1;
 }
 
+const std::string ParseSymbol(const std::string& symbolName) {
+  return symbolName.substr(1);
+}
+
 const char* GetBinaryOPString(koopa_raw_binary_op_t opt) {
   koopa_raw_binary_op op = (koopa_raw_binary_op)opt;
   switch (op) {
