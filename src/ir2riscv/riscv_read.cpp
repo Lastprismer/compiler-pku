@@ -172,7 +172,7 @@ void visit_inst_binary(const koopa_raw_value_t& inst) {
   if (smem.InstResult.find(inst_bina.rhs) != smem.InstResult.end() ||
       inst_bina.rhs->kind.tag == KOOPA_RVT_INTEGER) {  // 保存过或是立即数
     // r2是临时分配的
-    gen.RegManager.releaseReg(r2);
+    gen.regmng.releaseReg(r2);
   }
   smem.InstResult[inst] = dst;
 }
@@ -188,7 +188,7 @@ void visit_inst_branch(const koopa_raw_value_t& inst) {
   if (smem.InstResult.find(branch.cond) != smem.InstResult.end() ||
       branch.cond->kind.tag == KOOPA_RVT_INTEGER) {  // 保存过或是立即数
     // cond是临时分配的
-    gen.RegManager.releaseReg(cond);
+    gen.regmng.releaseReg(cond);
   }
 }
 
@@ -248,7 +248,7 @@ Reg GetValueResult(const koopa_raw_value_t& value) {
   auto& smem = gen.smem;
   if (value->kind.tag == KOOPA_RVT_INTEGER) {
     // 处理常数
-    Reg rs = gen.RegManager.getAvailableReg();
+    Reg rs = gen.regmng.getAvailableReg();
     smem.WriteLI(rs, value->kind.data.integer.value);
     return rs;
   }
@@ -262,7 +262,7 @@ Reg GetValueResult(const koopa_raw_value_t& value) {
     return info.content.reg;
   } else if (info.ty == StackMemoryModule::ValueType::stack) {
     // 先读出
-    Reg rs = gen.RegManager.getAvailableReg();
+    Reg rs = gen.regmng.getAvailableReg();
     smem.WriteLW(rs, info.content.addr);
     return rs;
   }

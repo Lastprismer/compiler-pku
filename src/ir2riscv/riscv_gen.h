@@ -103,7 +103,7 @@ class RiscvGenerator {
  public:
   string FunctionName;
   GenSettings Setting;
-  RegisterModule RegManager;
+  RegisterModule regmng;
   StackMemoryModule smem;
   BBModule BBMan;
   static RiscvGenerator& getInstance();

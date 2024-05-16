@@ -20,7 +20,7 @@ bool BaseModule::IsActive() {
 
 #pragma endregion
 
-#pragma region RegisterManager
+#pragma region Register
 
 RegisterModule::RegisterModule() : BaseModule() {
   availableRegs = {};
@@ -43,7 +43,7 @@ void RegisterModule::releaseReg(Reg reg) {
 
 #pragma endregion
 
-#pragma region StackMemoryModule
+#pragma region Stack
 
 void StackMemoryModule::InstResultInfo::Output() {
   cout << "type: ";
@@ -91,10 +91,10 @@ void StackMemoryModule::WriteStoreInst(const StoreInfo& info) {
         li(os, info.dest.content.reg, info.src.content.imm);
       } else {
         // store imm to stack
-        Reg rd = gen.RegManager.getAvailableReg();
+        Reg rd = gen.regmng.getAvailableReg();
         li(os, rd, info.src.content.imm);
         WriteSW(rd, info.dest.content.addr);
-        gen.RegManager.releaseReg(rd);
+        gen.regmng.releaseReg(rd);
       }
       break;
     case StackMemoryModule::ValueType::reg:
@@ -104,15 +104,15 @@ void StackMemoryModule::WriteStoreInst(const StoreInfo& info) {
       } else {
         // store reg to stack
         WriteSW(info.src.content.reg, info.dest.content.addr);
-        gen.RegManager.releaseReg(info.src.content.reg);
+        gen.regmng.releaseReg(info.src.content.reg);
       }
       break;
     case StackMemoryModule::ValueType::stack: {
       if (info.dest.ty == StackMemoryModule::ValueType::stack) {
-        Reg rs = gen.RegManager.getAvailableReg();
+        Reg rs = gen.regmng.getAvailableReg();
         WriteLW(rs, info.src.content.addr);
         WriteSW(rs, info.dest.content.addr);
-        gen.RegManager.releaseReg(rs);
+        gen.regmng.releaseReg(rs);
       }
     }
   }
@@ -127,21 +127,21 @@ void StackMemoryModule::WriteLI(const Reg& rd, int imm) {
 void StackMemoryModule::WriteLW(const Reg& rd, int addr) {
   auto& gen = RiscvGenerator::getInstance();
   ostream& os = gen.Setting.getOs();
-  Reg adr = gen.RegManager.getAvailableReg();
+  Reg adr = gen.regmng.getAvailableReg();
   li(os, adr, addr);
   add(os, adr, adr, Reg::sp);
   lw(os, rd, adr, 0);
-  gen.RegManager.releaseReg(adr);
+  gen.regmng.releaseReg(adr);
 }
 
 void StackMemoryModule::WriteSW(const Reg& rs, int addr) {
   auto& gen = RiscvGenerator::getInstance();
   ostream& os = gen.Setting.getOs();
-  Reg adr = gen.RegManager.getAvailableReg();
+  Reg adr = gen.regmng.getAvailableReg();
   li(os, adr, addr);
   add(os, adr, adr, Reg::sp);
   sw(os, adr, rs, 0);
-  gen.RegManager.releaseReg(adr);
+  gen.regmng.releaseReg(adr);
 }
 
 void StackMemoryModule::Debug_OutputInstResult() {
@@ -167,12 +167,40 @@ StackMemoryModule::StackMemoryModule()
 
 #pragma endregion
 
+#pragma region BBModule
+
+BBModule::BBModule() {}
+
+void BBModule::WriteBBName(const string& label) {
+  ostream& os = RiscvGenerator::getInstance().Setting.getOs();
+  wlabel(os, ParseSymbol(label));
+}
+
+void BBModule::WriteJumpInst(const string& label) {
+  ostream& os = RiscvGenerator::getInstance().Setting.getOs();
+  j(os, ParseSymbol(label));
+}
+
+void BBModule::WriteBranch(const Reg& cond,
+                           const string& trueLabel,
+                           const string& falseLabel) {
+  ostream& os = RiscvGenerator::getInstance().Setting.getOs();
+  const string trueMid = ParseSymbol(trueLabel) + "_mid";
+  bnez(os, cond, trueMid);
+  // 否则跳到false
+  j(os, ParseSymbol(falseLabel));
+  wlabel(os, trueMid);
+  j(os, ParseSymbol(trueLabel));
+}
+
+#pragma endregion
+
 #pragma region RiscvGen
 
 RiscvGenerator::RiscvGenerator() : smem(), BBMan() {
   Setting.setOs(cout).setIndent(0);
   FunctionName = "";
-  RegManager = RegisterModule();
+  regmng = RegisterModule();
 }
 
 RiscvGenerator& RiscvGenerator::getInstance() {
@@ -193,10 +221,10 @@ void RiscvGenerator::WritePrologue() {
   if (IsImmInBound(-stackMemoryAlloc)) {
     addi(os, Reg::sp, Reg::sp, -stackMemoryAlloc);
   } else {
-    Reg rd = RegManager.getAvailableReg();
+    Reg rd = regmng.getAvailableReg();
     li(os, rd, -stackMemoryAlloc);
     add(os, Reg::sp, Reg::sp, rd);
-    RegManager.releaseReg(rd);
+    regmng.releaseReg(rd);
   }
 }
 
@@ -218,10 +246,10 @@ void RiscvGenerator::WriteEpilogue(
     if (IsImmInBound(stackMemoryAlloc)) {
       addi(os, Reg::sp, Reg::sp, stackMemoryAlloc);
     } else {
-      Reg rd = RegManager.getAvailableReg();
+      Reg rd = regmng.getAvailableReg();
       li(os, rd, stackMemoryAlloc);
       add(os, Reg::sp, Reg::sp, rd);
-      RegManager.releaseReg(rd);
+      regmng.releaseReg(rd);
     }
   }
   ret(os);
@@ -293,29 +321,5 @@ void RiscvGenerator::WriteBinaInst(OpType op,
 }
 
 #pragma endregion
-
-BBModule::BBModule() {}
-
-void BBModule::WriteBBName(const string& label) {
-  ostream& os = RiscvGenerator::getInstance().Setting.getOs();
-  wlabel(os, ParseSymbol(label));
-}
-
-void BBModule::WriteJumpInst(const string& label) {
-  ostream& os = RiscvGenerator::getInstance().Setting.getOs();
-  j(os, ParseSymbol(label));
-}
-
-void BBModule::WriteBranch(const Reg& cond,
-                           const string& trueLabel,
-                           const string& falseLabel) {
-  ostream& os = RiscvGenerator::getInstance().Setting.getOs();
-  const string trueMid = ParseSymbol(trueLabel) + "_mid";
-  bnez(os, cond, trueMid);
-  // 否则跳到false
-  j(os, ParseSymbol(falseLabel));
-  wlabel(os, trueMid);
-  j(os, ParseSymbol(trueLabel));
-}
 
 }  // namespace riscv
