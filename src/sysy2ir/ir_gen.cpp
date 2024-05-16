@@ -79,7 +79,7 @@ const bool BranchManager::IsInALoop() const {
 }
 
 const string BranchManager::GenerateLabelFromBranchedLoop() {
-  return string("%unreachable_in_loop_") + to_string(registerNewBB());
+  return '%' + string("unreachable_in_loop_") + to_string(registerNewBB());
 }
 
 #pragma endregion

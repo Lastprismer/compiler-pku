@@ -635,7 +635,8 @@ void SimpleStmtAST::Dump() {
 
     case sstmt_t::brk: {
       auto& brCore = gen.branchCore;
-      assert(brCore.IsInALoop());
+      if (!brCore.IsInALoop())
+        return;
       auto& loopInfo = brCore.GetCurInfo();
       gen.WriteJumpInst(loopInfo.next_label);
       gen.WriteLabel(brCore.GenerateLabelFromBranchedLoop());
@@ -643,7 +644,8 @@ void SimpleStmtAST::Dump() {
 
     case sstmt_t::cont: {
       auto& brCore = gen.branchCore;
-      assert(brCore.IsInALoop());
+      if (!brCore.IsInALoop())
+        return;
       auto& loopInfo = brCore.GetCurInfo();
       gen.WriteJumpInst(loopInfo.cond_label);
       gen.WriteLabel(brCore.GenerateLabelFromBranchedLoop());
