@@ -244,6 +244,11 @@ void FuncDefAST::Dump() {
 
   gen.WriteFuncPrologue();
   block->Dump();
+  // 如果函数结束没有return，就补一个return 0;
+  if (!gen.hasRetThisBB) {
+    gen.funcRetInfo = RetInfo(0);
+    gen.WriteRetInst();
+  }
   gen.WriteFuncEpilogue();
 }
 
