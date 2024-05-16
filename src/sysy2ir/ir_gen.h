@@ -38,6 +38,14 @@ struct IfInfo {
   IfInfo(int then, int _else, int next);
 };
 
+// while相关信息
+struct LoopInfo {
+  int cond_label;
+  int body_label;
+  int next_label;
+  LoopInfo();
+};
+
 class IRGenerator {
  private:
   IRGenerator();
@@ -101,6 +109,16 @@ class IRGenerator {
   void WriteLabel(const string& labelName);
   // 生成一个用于短路的变量名
   const string registerShortCircuitVar();
+
+#pragma endregion
+
+#pragma region lv7
+
+  // 初始化LoopInfo（设置cond label）
+  void InitLoopInfo(LoopInfo& info);
+  // 生成while相关跳转指令（br），label存在loopInfo中
+  void WriteBrInst(const RetInfo& cond, LoopInfo& loopInfo);
+
 #pragma endregion
 
  private:
@@ -108,7 +126,9 @@ class IRGenerator {
   int symbolPool;
   int bbPool;
   const int registerNewSymbol();
+  // 生成新标签ID
   const int registerNewBB();
+
   const int registerNewVar();
   const string getSymbolName(const int& symbol) const;
   const string getLabelName(const int& bb_id) const;

@@ -48,6 +48,12 @@ IfInfo::IfInfo(int then, int _else, int next)
 
 #pragma endregion
 
+#pragma region LoopInfo
+
+LoopInfo::LoopInfo() {}
+
+#pragma endregion
+
 #pragma region IRGen - Class
 
 IRGenerator::IRGenerator() : symbolman() {
@@ -221,6 +227,19 @@ void IRGenerator::WriteLabel(const string& labelName) {
 
 const string IRGenerator::registerShortCircuitVar() {
   return string("if_") + to_string(registerNewVar());
+}
+
+void IRGenerator::InitLoopInfo(LoopInfo& info) {
+  info.cond_label = registerNewBB();
+}
+
+void IRGenerator::WriteBrInst(const RetInfo& cond, LoopInfo& loopInfo) {
+  ostream& os = getInstance().setting.getOs();
+  loopInfo.body_label = registerNewBB();
+  loopInfo.next_label = registerNewBB();
+  os << setting.getIndentStr() << "br " << cond.GetInfo() << ", "
+     << getLabelName(loopInfo.body_label) << ", "
+     << getLabelName(loopInfo.next_label) << endl;
 }
 
 const int IRGenerator::registerNewSymbol() {

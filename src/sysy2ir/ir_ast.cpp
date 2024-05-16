@@ -361,6 +361,13 @@ void OpenStmtAST::Print(ostream& os, int indent) const {
       os << "ELSE" << endl;
       open->Print(os, indent + 1);
       break;
+    case opty_t::loop:
+      os << "Loop" << endl;
+      make_indent(os, indent + 1);
+      os << "WHILE" << endl;
+      exp->Print(os, indent + 1);
+      open->Print(os, indent + 1);
+      break;
   }
   make_indent(os, indent);
   os << " }," << endl;
@@ -391,8 +398,7 @@ void OpenStmtAST::Dump() {
       gen.WriteLabel(ifin.next_label);
       break;
 
-    case iceo:
-    default: {
+    case iceo: {
       ifin = IfInfo(IfInfo::ifty_t::ie);
       gen.WriteBrInst(ret, ifin);
 
@@ -414,6 +420,27 @@ void OpenStmtAST::Dump() {
         gen.WriteLabel(ifin.next_label);
       }
     } break;
+
+    case loop:
+    default: {
+      LoopInfo loopInfo;
+      gen.InitLoopInfo(loopInfo);
+      gen.WriteJumpInst(loopInfo.cond_label);
+
+      gen.WriteLabel(loopInfo.cond_label);
+      exp->Dump();
+      auto cond = dynamic_cast<ExpAST*>(exp.get());
+      RetInfo ret = cond->thisRet;
+      gen.WriteBrInst(ret, loopInfo);
+
+      gen.WriteLabel(loopInfo.body_label);
+      open->Dump();
+      if (!gen.hasRetThisBB) {
+        gen.WriteJumpInst(loopInfo.cond_label);
+      }
+
+      gen.WriteLabel(loopInfo.next_label);
+    }
   }
 }
 
@@ -441,6 +468,13 @@ void ClosedStmtAST::Print(ostream& os, int indent) const {
       os << "ELSE" << endl;
       fclosed->Print(os, indent + 1);
       break;
+    case csty_t::loop:
+      os << "Loop" << endl;
+      make_indent(os, indent + 1);
+      os << "WHILE" << endl;
+      exp->Print(os, indent + 1);
+      tclosed->Print(os, indent + 1);
+      break;
   }
   make_indent(os, indent);
   os << " }," << endl;
@@ -453,8 +487,7 @@ void ClosedStmtAST::Dump() {
     case simp:
       simple->Dump();
       break;
-    case icec:
-    default: {
+    case icec: {
       exp->Dump();
       auto cond = dynamic_cast<ExpAST*>(exp.get());
       RetInfo ret = cond->thisRet;
@@ -478,6 +511,26 @@ void ClosedStmtAST::Dump() {
       if (!(retInElse && retInThen)) {
         gen.WriteLabel(ifin.next_label);
       }
+    } break;
+    case loop:
+    default: {
+      LoopInfo loopInfo;
+      gen.InitLoopInfo(loopInfo);
+      gen.WriteJumpInst(loopInfo.cond_label);
+
+      gen.WriteLabel(loopInfo.cond_label);
+      exp->Dump();
+      auto cond = dynamic_cast<ExpAST*>(exp.get());
+      RetInfo ret = cond->thisRet;
+      gen.WriteBrInst(ret, loopInfo);
+
+      gen.WriteLabel(loopInfo.body_label);
+      tclosed->Dump();
+      if (!gen.hasRetThisBB) {
+        gen.WriteJumpInst(loopInfo.cond_label);
+      }
+
+      gen.WriteLabel(loopInfo.next_label);
     } break;
   }
 }

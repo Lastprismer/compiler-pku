@@ -47,9 +47,11 @@ Stmt            ::= OpenStmt | ClosedStmt
 OpenStmt        ::= "if" "(" Exp ")" OpenStmt
                   | "if" "(" Exp ")" ClosedStmt
                   | "if" "(" Exp ")" ClosedStmt "else" OpenStmt
+                  | "while" "(" Exp ")" OpenStmt
 
 ClosedStmt      ::= SimpleStmt
                   | "if" "(" Exp ")" ClosedStmt "else" ClosedStmt
+                  | "while" "(" Exp ")" ClosedStmt
 
 SimpleStmt      ::= LVal "=" Exp ";"
                   | Exp
@@ -263,10 +265,11 @@ class StmtAST : public BaseAST {
 OpenStmt        ::= "if" "(" Exp ")" OpenStmt
                   | "if" "(" Exp ")" ClosedStmt
                   | "if" "(" Exp ")" ClosedStmt "else" OpenStmt
+                  | "while" "(" Exp ")" OpenStmt
 */
 class OpenStmtAST : public BaseAST {
  public:
-  enum opty_t { io, ic, iceo } type;
+  enum opty_t { io, ic, iceo, loop } type;
   unique_ptr<BaseAST> open, closed, exp;
 
   void Print(ostream& os, int indent) const override;
@@ -276,10 +279,11 @@ class OpenStmtAST : public BaseAST {
 /*
 ClosedStmt      ::= SimpleStmt
                   | "if" "(" Exp ")" ClosedStmt "else" ClosedStmt
+                  | "while" "(" Exp ")" ClosedStmt
 */
 class ClosedStmtAST : public BaseAST {
  public:
-  enum csty_t { simp, icec } type;
+  enum csty_t { simp, icec, loop } type;
   unique_ptr<BaseAST> simple, tclosed, fclosed, exp;
 
   void Print(ostream& os, int indent) const override;

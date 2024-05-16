@@ -40,7 +40,7 @@ using namespace std;
 %token INT RETURN
 %token OPLE OPLT OPGE OPGT OPEQ OPNE OPAND OPOR
 %token CONST
-%token IF ELSE
+%token IF ELSE WHILE
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
@@ -279,6 +279,7 @@ Stmt
 OpenStmt        ::= "if" "(" Exp ")" OpenStmt
                   | "if" "(" Exp ")" ClosedStmt
                   | "if" "(" Exp ")" ClosedStmt "else" OpenStmt
+                  | "while" "(" Exp ")" OpenStmt
 */
 OpenStmt
   : IF '(' Exp ')' OpenStmt {
@@ -303,11 +304,19 @@ OpenStmt
     ast->open = unique_ptr<BaseAST>($7);
     $$ = ast;
   }
+  | WHILE '(' Exp ')' OpenStmt {
+    auto ast = new OpenStmtAST();
+    ast->type = OpenStmtAST::opty_t::loop;
+    ast->exp = unique_ptr<BaseAST>($3);
+    ast->open = unique_ptr<BaseAST>($5);
+    $$ = ast;
+  }
   ;
 
 /*
 ClosedStmt      ::= SimpleStmt
                   | "if" "(" Exp ")" ClosedStmt "else" ClosedStmt
+                  | "while" "(" Exp ")" ClosedStmt
 */
 ClosedStmt
   : SimpleStmt {
@@ -322,6 +331,13 @@ ClosedStmt
     ast->exp = unique_ptr<BaseAST>($3);
     ast->tclosed = unique_ptr<BaseAST>($5);
     ast->fclosed = unique_ptr<BaseAST>($7);
+    $$ = ast;
+  }
+  | WHILE '(' Exp ')' ClosedStmt {
+    auto ast = new ClosedStmtAST();
+    ast->type = ClosedStmtAST::csty_t::loop;
+    ast->exp = unique_ptr<BaseAST>($3);
+    ast->tclosed = unique_ptr<BaseAST>($5);
     $$ = ast;
   }
   ;
