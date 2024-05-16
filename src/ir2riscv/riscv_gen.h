@@ -68,7 +68,10 @@ class StackMemoryModule : public BaseModule {
   void SetStackMem(const int& mem);
   void WriteStoreInst(const StoreInfo& info);
   void WriteLI(const Reg& rs, int imm);
-  void WriteLW(const Reg& rs, const Reg& rd, int addr);
+  // 从addr地址读出存入rd，不用imm12
+  void WriteLW(const Reg& rd, int addr);
+  // 从rs写入addr地址，不用imm12
+  void WriteSW(const Reg& rs, int addr);
   void Debug_OutputInstResult();
   // 返回应该用的addr
   int IncreaseStackUsed();

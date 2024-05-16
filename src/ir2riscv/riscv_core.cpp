@@ -5,11 +5,13 @@ namespace riscv {
 void ir2riscv(string ircode, const char* output) {
   koopa_raw_program_builder_t builder;
   koopa_raw_program_t program = get_raw_program(ircode, builder);
-  ofstream outfile(output);
-  RiscvGenerator::getInstance().Setting.setOs(outfile);
+  stringstream ss;
+  RiscvGenerator::getInstance().Setting.setOs(ss);
+  visit_program(program);
 
+  ofstream outfile(output);
   if (outfile.is_open()) {
-    visit_program(program);
+    outfile << ss.str();
     outfile.close();
   } else {
     cerr << "无法打开文件：" << output << endl;

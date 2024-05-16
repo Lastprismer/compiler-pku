@@ -9,13 +9,13 @@ void li(ostream& os, const Reg& dest, int imm) {
   os << "  li " << regstr(dest) << ", " << imm << endl;
 }
 
-void lw(ostream& os, const Reg& rs, const Reg& rd, int addr) {
-  os << "  lw " << regstr(rs) << ", " << addr << "(" << regstr(rd) << ")"
+void lw(ostream& os, const Reg& rd, const Reg& rs, int addr) {
+  os << "  lw " << regstr(rd) << ", " << addr << "(" << regstr(rs) << ")"
      << endl;
 }
 
-void sw(ostream& os, const Reg& rs1, const Reg& rs2, int addr) {
-  os << "  sw " << regstr(rs2) << ", " << addr << "(" << regstr(rs1) << ")"
+void sw(ostream& os, const Reg& rd, const Reg& rs, int addr) {
+  os << "  sw " << regstr(rs) << ", " << addr << "(" << regstr(rd) << ")"
      << endl;
 }
 

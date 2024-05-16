@@ -93,7 +93,7 @@ void StackMemoryModule::WriteStoreInst(const StoreInfo& info) {
         // store imm to stack
         Reg rd = gen.RegManager.getAvailableReg();
         li(os, rd, info.src.content.imm);
-        sw(os, Reg::sp, rd, info.dest.content.addr);
+        WriteSW(rd, info.dest.content.addr);
         gen.RegManager.releaseReg(rd);
       }
       break;
@@ -103,15 +103,15 @@ void StackMemoryModule::WriteStoreInst(const StoreInfo& info) {
         // 啥也不用做，最后会改表
       } else {
         // store reg to stack
-        sw(os, Reg::sp, info.src.content.reg, info.dest.content.addr);
+        WriteSW(info.src.content.reg, info.dest.content.addr);
         gen.RegManager.releaseReg(info.src.content.reg);
       }
       break;
     case StackMemoryModule::ValueType::stack: {
       if (info.dest.ty == StackMemoryModule::ValueType::stack) {
         Reg rs = gen.RegManager.getAvailableReg();
-        lw(os, rs, Reg::sp, info.src.content.addr);
-        sw(os, Reg::sp, rs, info.dest.content.addr);
+        WriteLW(rs, info.src.content.addr);
+        WriteSW(rs, info.dest.content.addr);
         gen.RegManager.releaseReg(rs);
       }
     }
@@ -124,9 +124,24 @@ void StackMemoryModule::WriteLI(const Reg& rd, int imm) {
   li(os, rd, imm);
 }
 
-void StackMemoryModule::WriteLW(const Reg& rs, const Reg& rd, int addr) {
-  ostream& os = RiscvGenerator::getInstance().Setting.getOs();
-  lw(os, rs, rd, addr);
+void StackMemoryModule::WriteLW(const Reg& rd, int addr) {
+  auto& gen = RiscvGenerator::getInstance();
+  ostream& os = gen.Setting.getOs();
+  Reg adr = gen.RegManager.getAvailableReg();
+  li(os, adr, addr);
+  add(os, adr, adr, Reg::sp);
+  lw(os, rd, adr, 0);
+  gen.RegManager.releaseReg(adr);
+}
+
+void StackMemoryModule::WriteSW(const Reg& rs, int addr) {
+  auto& gen = RiscvGenerator::getInstance();
+  ostream& os = gen.Setting.getOs();
+  Reg adr = gen.RegManager.getAvailableReg();
+  li(os, adr, addr);
+  add(os, adr, adr, Reg::sp);
+  sw(os, adr, rs, 0);
+  gen.RegManager.releaseReg(adr);
 }
 
 void StackMemoryModule::Debug_OutputInstResult() {
@@ -194,7 +209,7 @@ void RiscvGenerator::WriteEpilogue(
   } else if (retValueInfo.ty == StackMemoryModule::ValueType::reg) {
     mv(os, Reg::a0, retValueInfo.content.reg);
   } else {
-    lw(os, a0, Reg::sp, retValueInfo.content.addr);
+    smem.WriteLW(a0, retValueInfo.content.addr);
   }
 
   // 回收栈内存

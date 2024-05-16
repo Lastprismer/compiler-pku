@@ -62,43 +62,43 @@ void visit_basic_block(const koopa_raw_basic_block_t& bb) {
 void visit_value(const koopa_raw_value_t& value) {
   //  根据指令类型判断后续需要如何访问
   const auto& kind = value->kind;
-  cout << GetTypeString(value);
+  // cout << GetTypeString(value);
   // cout << kind.tag;
   switch (kind.tag) {
     case KOOPA_RVT_INTEGER:
-      cout << "  int" << endl;
+      // cout << "  int" << endl;
       // visit_inst_int(kind.data.integer);
       break;
     case KOOPA_RVT_ALLOC:
-      cout << "  alloc" << endl;
+      // cout << "  alloc" << endl;
       // visit_inst_alloc(value);
       break;
     case KOOPA_RVT_LOAD:
-      cout << "  load" << endl;
+      // cout << "  load" << endl;
       visit_inst_load(value);
       break;
     case KOOPA_RVT_STORE:
-      cout << "  store" << endl;
+      // cout << "  store" << endl;
       visit_inst_store(value);
       break;
     case KOOPA_RVT_BINARY:
-      cout << "  binary" << endl;
+      // cout << "  binary" << endl;
       visit_inst_binary(value);
       break;
     case KOOPA_RVT_BRANCH:
-      cout << "  branch" << endl;
+      // cout << "  branch" << endl;
       visit_inst_branch(value);
       break;
     case KOOPA_RVT_JUMP:
-      cout << "  jump" << endl;
+      // cout << "  jump" << endl;
       visit_inst_jump(value);
       break;
     case KOOPA_RVT_RETURN:
-      cout << "  ret" << endl;
+      // cout << "  ret" << endl;
       visit_inst_ret(kind.data.ret);
       break;
     default:
-      cout << "  what?" << endl;
+      // cout << "  what?" << endl;
       break;
       // 其他类型暂时遇不到
   }
@@ -263,7 +263,7 @@ Reg GetValueResult(const koopa_raw_value_t& value) {
   } else if (info.ty == StackMemoryModule::ValueType::stack) {
     // 先读出
     Reg rs = gen.RegManager.getAvailableReg();
-    smem.WriteLW(rs, Reg::sp, info.content.addr);
+    smem.WriteLW(rs, info.content.addr);
     return rs;
   }
   assert(false);
