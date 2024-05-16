@@ -59,6 +59,8 @@ SimpleStmt      ::= LVal "=" Exp ";"
                   | Block
                   | "return" Exp ";"
                   | "return" ";"
+                  | "continue" ";"
+                  | "break" ";"
 
 
 
@@ -292,14 +294,17 @@ class ClosedStmtAST : public BaseAST {
 
 /*
 SimpleStmt      ::= LVal "=" Exp ";"
-                  | [Exp] ";"
+                  | Exp
+                  | ";"
                   | Block
-                  | "return" [Exp] ";";
-                  | "if" "(" Exp ")" Stmt ["else" Stmt]
+                  | "return" Exp ";"
+                  | "return" ";"
+                  | "continue" ";"
+                  | "break" ";"
 */
 class SimpleStmtAST : public BaseAST {
  public:
-  enum sstmt_t { storelval, ret, expr, block, nullexp, nullret };
+  enum sstmt_t { storelval, ret, expr, block, nullexp, nullret, cont, brk };
   sstmt_t st;
   unique_ptr<BaseAST> lval;
   unique_ptr<BaseAST> exp;

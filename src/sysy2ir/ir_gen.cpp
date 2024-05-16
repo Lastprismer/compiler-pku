@@ -54,9 +54,39 @@ LoopInfo::LoopInfo() {}
 
 #pragma endregion
 
+#pragma region Branch
+
+BranchManager::BranchManager() : bbPool(0), loopStack() {}
+
+const int BranchManager::registerNewBB() {
+  return bbPool++;
+}
+
+void BranchManager::PushInfo(const LoopInfo info) {
+  loopStack.push_back(info);
+}
+
+void BranchManager::PopInfo() {
+  loopStack.pop_back();
+}
+
+const LoopInfo& BranchManager::GetCurInfo() const {
+  return loopStack.back();
+}
+
+const bool BranchManager::IsInALoop() const {
+  return loopStack.size() > 0;
+}
+
+const string BranchManager::GenerateLabelFromBranchedLoop() {
+  return string("%unreachable_in_loop_") + to_string(registerNewBB());
+}
+
+#pragma endregion
+
 #pragma region IRGen - Class
 
-IRGenerator::IRGenerator() : symbolman() {
+IRGenerator::IRGenerator() : symbolCore() {
   setting.setOs(cout).setIndent(0);
 
   symbolPool = 0;
@@ -186,17 +216,17 @@ void IRGenerator::WriteBrInst(const RetInfo& cond, IfInfo& info) {
   ostream& os = getInstance().setting.getOs();
   switch (info.ty) {
     case IfInfo::ifty_t::i:
-      info.then_label = registerNewBB();
-      info.next_label = registerNewBB();
+      info.then_label = branchCore.registerNewBB();
+      info.next_label = branchCore.registerNewBB();
       os << setting.getIndentStr() << "br " << cond.GetInfo() << ", "
          << getLabelName(info.then_label) << ", "
          << getLabelName(info.next_label) << endl;
       break;
     case IfInfo::ifty_t::ie:
     default:
-      info.then_label = registerNewBB();
-      info.else_label = registerNewBB();
-      info.next_label = registerNewBB();
+      info.then_label = branchCore.registerNewBB();
+      info.else_label = branchCore.registerNewBB();
+      info.next_label = branchCore.registerNewBB();
       os << setting.getIndentStr() << "br " << cond.GetInfo() << ", "
          << getLabelName(info.then_label) << ", "
          << getLabelName(info.else_label) << endl;
@@ -230,13 +260,13 @@ const string IRGenerator::registerShortCircuitVar() {
 }
 
 void IRGenerator::InitLoopInfo(LoopInfo& info) {
-  info.cond_label = registerNewBB();
+  info.cond_label = branchCore.registerNewBB();
 }
 
 void IRGenerator::WriteBrInst(const RetInfo& cond, LoopInfo& loopInfo) {
   ostream& os = getInstance().setting.getOs();
-  loopInfo.body_label = registerNewBB();
-  loopInfo.next_label = registerNewBB();
+  loopInfo.body_label = branchCore.registerNewBB();
+  loopInfo.next_label = branchCore.registerNewBB();
   os << setting.getIndentStr() << "br " << cond.GetInfo() << ", "
      << getLabelName(loopInfo.body_label) << ", "
      << getLabelName(loopInfo.next_label) << endl;
@@ -246,12 +276,8 @@ const int IRGenerator::registerNewSymbol() {
   return symbolPool++;
 }
 
-const int IRGenerator::registerNewBB() {
-  return bbPool++;
-}
-
 const int IRGenerator::registerNewVar() {
-  return symbolman.dproc.RegisterVar();
+  return symbolCore.dproc.RegisterVar();
 }
 
 #pragma endregion

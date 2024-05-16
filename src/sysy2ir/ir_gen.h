@@ -46,6 +46,27 @@ struct LoopInfo {
   LoopInfo();
 };
 
+class BranchManager {
+ public:
+  BranchManager();
+  // 生成新标签ID
+  const int registerNewBB();
+  // 将当前while循环信息推入栈
+  void PushInfo(const LoopInfo info);
+  // 弹出一个while循环信息
+  void PopInfo();
+  // 获取当前while循环信息
+  const LoopInfo& GetCurInfo() const;
+  // 判断当前是否在循环中
+  const bool IsInALoop() const;
+  // 为了break和continue生成一个不可达的label
+  const string GenerateLabelFromBranchedLoop();
+
+ private:
+  int bbPool;
+  deque<LoopInfo> loopStack;
+};
+
 class IRGenerator {
  private:
   IRGenerator();
@@ -55,11 +76,14 @@ class IRGenerator {
 
  public:
   static IRGenerator& getInstance();
+  GenSettings setting;
+
   string funcName;
   string returnType;
-  GenSettings setting;
-  SymbolManager symbolman;
   RetInfo funcRetInfo;
+
+  SymbolManager symbolCore;
+  BranchManager branchCore;
 
   // 生成函数开头
   void WriteFuncPrologue();
@@ -124,10 +148,7 @@ class IRGenerator {
  private:
   // 临时符号ID
   int symbolPool;
-  int bbPool;
   const int registerNewSymbol();
-  // 生成新标签ID
-  const int registerNewBB();
 
   const int registerNewVar();
   const string getSymbolName(const int& symbol) const;

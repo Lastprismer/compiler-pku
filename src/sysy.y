@@ -40,7 +40,7 @@ using namespace std;
 %token INT RETURN
 %token OPLE OPLT OPGE OPGT OPEQ OPNE OPAND OPOR
 %token CONST
-%token IF ELSE WHILE
+%token IF ELSE WHILE CONTINUE BREAK
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
@@ -349,6 +349,8 @@ SimpleStmt      ::= LVal "=" Exp ";"
                   | Block
                   | "return" Exp ";"
                   | "return" ";"
+                  | "continue" ";"
+                  | "break" ";"
 */
 SimpleStmt
   : LVal '=' Exp ';' {
@@ -384,6 +386,16 @@ SimpleStmt
   | RETURN ';' {
     auto ast = new SimpleStmtAST();
     ast->st = SimpleStmtAST::sstmt_t::nullret;
+    $$ = ast;
+  }
+  | CONTINUE {
+    auto ast = new SimpleStmtAST();
+    ast->st = SimpleStmtAST::sstmt_t::cont;
+    $$ = ast;
+  }
+  | BREAK {
+    auto ast = new SimpleStmtAST();
+    ast->st = SimpleStmtAST::sstmt_t::brk;
     $$ = ast;
   }
   ;
