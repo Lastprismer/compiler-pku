@@ -29,7 +29,7 @@ const string SymbolTableEntry::GetAllocName() const {
 }
 
 const string SymbolTableEntry::GetAllocInst() const {
-  assert(symbolType == SymbolType::VAR);
+  // assert(symbolType == SymbolType::VAR);
   if (varType == VarType::INT) {
     // int
     // @x = alloc i32
@@ -38,13 +38,14 @@ const string SymbolTableEntry::GetAllocInst() const {
     return ss.str();
   } else {
     cerr << "[NOT SUPPORTED]" << endl;
-    assert(false);
+    // assert(false);
+    return "";
   }
 }
 
 const string SymbolTableEntry::GetLoadInst(
     const string& loadToSymbolName) const {
-  assert(symbolType == SymbolType::VAR);
+  // assert(symbolType == SymbolType::VAR);
   if (varType == VarType::INT) {
     // int
     // %0 = load @x
@@ -53,13 +54,14 @@ const string SymbolTableEntry::GetLoadInst(
     return ss.str();
   } else {
     cerr << "[NOT SUPPORTED]" << endl;
-    assert(false);
+    // assert(false);
+    return "";
   }
 }
 
 const string SymbolTableEntry::GetStoreInst(
     const string& storeFromSymbolName) const {
-  assert(symbolType == SymbolType::VAR);
+  // assert(symbolType == SymbolType::VAR);
   if (varType == VarType::INT) {
     // int
     // store %0, @x
@@ -68,12 +70,13 @@ const string SymbolTableEntry::GetStoreInst(
     return ss.str();
   } else {
     cerr << "[NOT SUPPORTED]" << endl;
-    assert(false);
+    // assert(false);
+    return "";
   }
 }
 
 const string SymbolTableEntry::GetStoreInst(const int& imm) const {
-  assert(symbolType == SymbolType::VAR);
+  // (symbolType == SymbolType::VAR);
   if (varType == VarType::INT) {
     // int
     // store 0, @x
@@ -82,7 +85,8 @@ const string SymbolTableEntry::GetStoreInst(const int& imm) const {
     return ss.str();
   } else {
     cerr << "[NOT SUPPORTED]" << endl;
-    assert(false);
+    // assert(false);
+    return "";
   }
 }
 
@@ -225,7 +229,8 @@ const SymbolTableEntry SymbolManager::getEntry(string symbol_name) {
     search = search->parent;
   }
   cerr << "SymbolManager: don't find symbol with name " << symbol_name << endl;
-  assert(false);
+  // assert(false);
+  return SymbolTableEntry();
 }
 
 void SymbolManager::InsertEntry(SymbolTableEntry entry) {

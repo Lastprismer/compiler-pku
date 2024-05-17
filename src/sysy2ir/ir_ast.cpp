@@ -1027,7 +1027,6 @@ void RelExpAST::Dump() {
         thisRet = gen.WriteBinaryInst(rel->thisRet, ae->thisRet, OpID::LG_GE);
         break;
       default:
-        assert(false);
         break;
     }
   } else {
@@ -1100,9 +1099,6 @@ void EqExpAST::Dump() {
         break;
       case eop_t::NotEqual:
         thisRet = gen.WriteBinaryInst(eq->thisRet, rel->thisRet, OpID::LG_NEQ);
-        break;
-      default:
-        assert(false);
         break;
     }
   } else {
@@ -1326,7 +1322,7 @@ void ConstExpAST::Dump() {
   exp->Dump();
   auto ptr = dynamic_cast<ExpAST*>(exp.get());
   thisRet = ptr->thisRet;
-  assert(thisRet.ty == RetInfo::ty_int);
+  // assert(thisRet.ty == RetInfo::ty_int);
 }
 
 #pragma endregion

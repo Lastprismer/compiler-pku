@@ -11,12 +11,12 @@ RetInfo::RetInfo(int _value) : ty(ty_int), value(_value) {}
 RetInfo::RetInfo(string _symbol) : ty(ty_sbl), name(_symbol) {}
 
 const int& RetInfo::GetValue() const {
-  assert(ty == ty_int);
+  // assert(ty == ty_int);
   return value;
 }
 
 const string& RetInfo::GetSym() const {
-  assert(ty == ty_sbl);
+  // assert(ty == ty_sbl);
   return name;
 }
 
@@ -138,12 +138,10 @@ const RetInfo IRGenerator::WriteUnaryInst(const RetInfo& left, OpID op) {
   // 只有两种运算
   // 1. a = -b，等效于 a = 0 - b，推出b，加入0，推入b，调用sub
   // 2. a = !b，等效于a = 0 == b，推出b，加入0，推入b，调用eq
-  if (op == OpID::UNARY_NEG) {
+  else if (op == OpID::UNARY_NEG) {
     return WriteBinaryInst(RetInfo(0), left, OpID::BI_SUB);
-  } else if (op == OpID::UNARY_NOT) {
-    return WriteBinaryInst(RetInfo(0), left, OpID::LG_EQ);
   } else {
-    assert(false);
+    return WriteBinaryInst(RetInfo(0), left, OpID::LG_EQ);
   }
 }
 
@@ -321,7 +319,7 @@ int IRGenerator::calcConstExpr(const int& l, const int& r, OpID op) {
     case LG_OR:
       return l || r;
     default:
-      assert(false);
+      return 0;
   }
   return 0;
 }

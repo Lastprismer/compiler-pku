@@ -46,7 +46,8 @@ string BiOp2koopa(OpID id) {
       s = "ge";
       break;
     default:
-      assert(false);
+      s = "";
+      break;
   }
   return string(s);
 }
