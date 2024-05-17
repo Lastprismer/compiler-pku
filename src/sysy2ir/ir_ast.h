@@ -54,7 +54,7 @@ ClosedStmt      ::= SimpleStmt
                   | "while" "(" Exp ")" ClosedStmt
 
 SimpleStmt      ::= LVal "=" Exp ";"
-                  | Exp
+                  | Exp ";"
                   | ";"
                   | Block
                   | "return" Exp ";"

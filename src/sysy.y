@@ -14,6 +14,7 @@
 // 声明 lexer 函数和错误处理函数
 int yylex();
 void yyerror(std::unique_ptr<BaseAST> &ast, const char *s);
+extern int yylineno;
 
 using namespace std;
 
@@ -52,6 +53,8 @@ using namespace std;
 %type <ast_val> VarDecl VarDef InitVal VarDeclList
 // lv6-if
 %type <ast_val> Stmt OpenStmt ClosedStmt SimpleStmt
+
+%define parse.error verbose
 
 %%
 
@@ -344,7 +347,7 @@ ClosedStmt
 
 /*
 SimpleStmt      ::= LVal "=" Exp ";"
-                  | Exp
+                  | Exp ";"
                   | ";"
                   | Block
                   | "return" Exp ";"
@@ -388,12 +391,12 @@ SimpleStmt
     ast->st = SimpleStmtAST::sstmt_t::nullret;
     $$ = ast;
   }
-  | CONTINUE {
+  | CONTINUE ';' {
     auto ast = new SimpleStmtAST();
     ast->st = SimpleStmtAST::sstmt_t::cont;
     $$ = ast;
   }
-  | BREAK {
+  | BREAK ';' {
     auto ast = new SimpleStmtAST();
     ast->st = SimpleStmtAST::sstmt_t::brk;
     $$ = ast;
@@ -661,5 +664,5 @@ ConstExp
 // 定义错误处理函数, 其中第二个参数是错误信息
 // parser 如果发生错误 (例如输入的程序出现了语法错误), 就会调用这个函数
 void yyerror(unique_ptr<BaseAST> &ast, const char *s) {
-  cerr << "error: " << s << endl;
+  cerr << "error: " << s << " at line " << yylineno << endl;
 }
