@@ -191,6 +191,17 @@ const map<string, VarType>& FuncManager::GetFuncTable() const {
   return func_table;
 }
 
+void FuncManager::AddLibFuncs() {
+  func_table.emplace(make_pair(string("getint"), VarType::e_int));
+  func_table.emplace(make_pair(string("getch"), VarType::e_int));
+  func_table.emplace(make_pair(string("getarray"), VarType::e_int));
+  func_table.emplace(make_pair(string("putint"), VarType::e_void));
+  func_table.emplace(make_pair(string("putch"), VarType::e_void));
+  func_table.emplace(make_pair(string("putarray"), VarType::e_void));
+  func_table.emplace(make_pair(string("starttime"), VarType::e_void));
+  func_table.emplace(make_pair(string("stoptime"), VarType::e_void));
+}
+
 const string FuncManager::getVarType(const VarType& ty) const {
   switch (ty) {
     case VarType::e_int:
@@ -415,6 +426,21 @@ const RetInfo IRGenerator::WriteCallInst(const string& func_name,
   } else {
     return RetInfo();
   }
+}
+
+void IRGenerator::WriteLibFuncDecl() {
+  auto& os = setting.getOs();
+  os <<
+      R"EOF(decl @getint(): i32
+decl @getch(): i32
+decl @getarray(*i32): i32
+decl @putint(i32)
+decl @putch(i32)
+decl @putarray(i32, *i32)
+decl @starttime()
+decl @stoptime())EOF"
+     << endl;
+  funcCore.AddLibFuncs();
 }
 
 const int IRGenerator::registerNewVar() {

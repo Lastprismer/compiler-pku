@@ -111,6 +111,8 @@ class FuncManager {
   void SetDefaultRetInfo();
   // 返回函数表
   const map<string, VarType>& GetFuncTable() const;
+  // 将库函数加入函数表
+  void AddLibFuncs();
 
  private:
   // 临时符号ID
@@ -204,7 +206,8 @@ class IRGenerator {
   // 生成call指令
   const RetInfo WriteCallInst(const string& func_name,
                               const vector<RetInfo>& params);
-
+  // 生成库函数定义
+  void WriteLibFuncDecl();
 #pragma endregion
 
  private:

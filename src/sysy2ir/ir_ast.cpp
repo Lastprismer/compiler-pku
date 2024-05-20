@@ -16,6 +16,7 @@ void CompRootAST::Print(ostream& os, int indent) const {
 
 void CompRootAST::Dump() {
   auto& gen = IRGenerator::getInstance();
+  gen.WriteLibFuncDecl();
   for (auto it = comp_units.begin(); it != comp_units.end(); it++) {
     (*it)->Dump();
     gen.funcCore.Reset();

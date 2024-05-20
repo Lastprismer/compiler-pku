@@ -11,7 +11,7 @@ using std::string, std::map, std::stringstream;
 class SymbolManager;
 
 enum class SymbolType { e_unused, e_const, e_var };
-enum class VarType { e_unused, e_int, e_void, e_func };
+enum class VarType { e_unused, e_int, e_void, e_pointer };
 
 struct SymbolTableEntry {
   // 常数或变量
