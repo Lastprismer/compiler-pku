@@ -85,7 +85,7 @@ CompUnitList
   }
   ;
 
-// CompUnit        ::= FuncDef | Decl;
+// CompUnit        ::= FuncDef | Decl
 CompUnit
   : FuncDef {
     auto ast = new CompUnitAST();
@@ -101,7 +101,7 @@ CompUnit
   }
   ;
 
-// Decl          ::= ConstDecl | VarDecl;
+// Decl          ::= ConstDecl | VarDecl
 Decl
   : ConstDecl {
     auto ast = new DeclAST();
@@ -118,7 +118,7 @@ Decl
   ;
 
 
-// ConstDecl     ::= "const" BType ConstDef ConstDeclList ";";
+// ConstDecl     ::= "const" BType ConstDef ConstDeclList ";"
 ConstDecl
   : CONST BType ConstDef ConstDeclList ';' {
     auto ast = new ConstDeclAST();
@@ -160,7 +160,7 @@ BType
   }
   ;
 
-// ConstDef      ::= IDENT "=" ConstInitVal;
+// ConstDef      ::= IDENT "=" ConstInitVal
 ConstDef
   : IDENT '=' ConstInitVal {
     auto ast = new ConstDefAST();
@@ -170,7 +170,7 @@ ConstDef
   }
   ;
 
-// ConstInitVal  ::= ConstExp;
+// ConstInitVal  ::= ConstExp
 ConstInitVal
   : ConstExp {
     auto ast = new ConstInitValAST();
@@ -180,7 +180,7 @@ ConstInitVal
   ;
 
 
-// VarDecl     ::= BType VarDef VarDeclList ";";
+// VarDecl     ::= BType VarDef VarDeclList ";"
 VarDecl
   : BType VarDef VarDeclList ';' {
     auto ast = new VarDeclAST();
@@ -208,7 +208,7 @@ VarDeclList
   }
   ;
 
-// VarDef        ::= IDENT | IDENT "=" InitVal;
+// VarDef        ::= IDENT | IDENT "=" InitVal
 VarDef
   : IDENT {
     auto ast = new VarDefAST();
@@ -225,7 +225,7 @@ VarDef
   }
   ;
 
-// InitVal       ::= Exp;
+// InitVal       ::= Exp
 InitVal
   : Exp {
     auto ast = new InitValAST();
@@ -285,7 +285,7 @@ FuncFParam
   }
   ;
 
-// Block     ::= "{" BlockList "}";
+// Block     ::= "{" BlockList "}"
 Block
   : '{' BlockList '}' {
     auto ast = new BlockAST();
@@ -312,7 +312,7 @@ BlockList
   }
   ;
 
-// BlockItem     ::= Decl | Stmt;
+// BlockItem     ::= Decl | Stmt
 BlockItem
   : Decl {
     auto ast = new BlockItemAST();
@@ -478,7 +478,7 @@ Exp
   }
   ;
 
-// LVal          ::= IDENT;
+// LVal          ::= IDENT
 LVal
   : IDENT {
     auto ast = new LValAST();
@@ -487,7 +487,7 @@ LVal
   }
   ;
 
-// PrimaryExp    ::= "(" Exp ")" | LVal | Number;
+// PrimaryExp    ::= "(" Exp ")" | LVal | Number
 PrimaryExp
   : '(' Exp ')' {
     auto ast = new PrimaryExpAST();
@@ -510,7 +510,7 @@ PrimaryExp
   }
   ;
 
-// Number      ::= INT_CONST;
+// Number      ::= INT_CONST
 Number
   : INT_CONST {
     auto ast = new NumberAST();
@@ -570,7 +570,7 @@ UnaryExp
   }
   ;
 
-// FuncRParams     ::= Exp FuncRParamsList;
+// FuncRParams     ::= Exp FuncRParamsList
 FuncRParams
   : Exp FuncRParamsList {
     auto ast = new FuncRParamsAST();

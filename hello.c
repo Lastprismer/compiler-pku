@@ -1,6 +1,8 @@
-int a;
+int f(int p) {
+  return p;
+}
+const int p = 20;
 
 int main() {
-  int a = 1;
-  return a;
+  return f(p);
 }

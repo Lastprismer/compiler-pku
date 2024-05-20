@@ -17,7 +17,7 @@ using ir::RetInfo;
 /*
 CompRoot        ::= CompUnitList
 CompUnitList    ::= CompUnit CompUnitList | epsilon
-CompUnit        ::= FuncDef | Decl;
+CompUnit        ::= FuncDef | Decl
 
 变量定义：
 Decl            ::= ConstDecl | VarDecl
@@ -35,14 +35,14 @@ InitVal         ::= Exp
 
 函数定义：
 FuncDef         ::= BType IDENT "(" FuncFParams ")" Block
-FuncFParams     ::= FuncFParam FuncFParamsList | epsilon;
+FuncFParams     ::= FuncFParam FuncFParamsList | epsilon
 FuncFParamsList ::= "," FuncFParam FuncFParamsList | epsilon
-FuncFParam      ::= BType IDENT;
+FuncFParam      ::= BType IDENT
 
 语句：
-Block           ::= "{" BlockItem BlockList "}";
+Block           ::= "{" BlockItem BlockList "}"
 BlockList       ::= BlockItem BlockList | epsilon
-BlockItem       ::= Decl | Stmt;
+BlockItem       ::= Decl | Stmt
 
 
 逻辑：
@@ -71,7 +71,7 @@ SimpleStmt      ::= LVal "=" Exp ";"
 Exp             ::= LOrExp
 LVal            ::= IDENT
 PrimaryExp      ::= "(" Exp ")" | LVal | Number
-Number          ::= INT_CONST;
+Number          ::= INT_CONST
 UnaryExp        ::= PrimaryExp
                   | "+" UnaryExp
                   | "-" UnaryExp
@@ -81,7 +81,7 @@ UnaryExp        ::= PrimaryExp
 
 
 函数调用：
-FuncRParams     ::= Exp FuncRParamsList;
+FuncRParams     ::= Exp FuncRParamsList
 FuncRParamsList ::= "," Exp FuncRParamsList | epsilon
 
 MulExp          ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp
@@ -90,7 +90,7 @@ RelExp          ::= AddExp | RelExp ("<" | ">" | "<=" | ">=") AddExp
 EqExp           ::= RelExp | EqExp ("==" | "!=") RelExp
 LAndExp         ::= EqExp | LAndExp "&&" EqExp
 LOrExp          ::= LAndExp | LOrExp "||" LAndExp
-ConstExp        ::= Exp;
+ConstExp        ::= Exp
 
 */
 
