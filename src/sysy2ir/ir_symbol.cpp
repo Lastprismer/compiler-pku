@@ -167,7 +167,7 @@ SymbolTableEntry DeclaimProcessor::GenerateConstEntry(const string& varName,
   assert(IsEnabled() && current_symbol_type == SymbolType::e_const &&
          current_var_type != VarType::e_unused);
   return SymbolTableEntry(SymbolType::e_const, current_var_type, varName, value,
-                          RegisterVar());
+                          -1);
 }
 
 SymbolTableEntry DeclaimProcessor::GenerateVarEntry(const string& varName) {

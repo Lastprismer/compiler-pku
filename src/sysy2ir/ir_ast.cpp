@@ -309,7 +309,9 @@ void FuncDefAST::Dump() {
   gen.funcCore.func_name = func_name;
 
   gen.WriteFuncPrologue();
+  gen.symbolCore.PushScope();
   block->Dump();
+  gen.symbolCore.PopScope();
   // 如果函数结束没有return，就按照函数返回值类型补一个return;
   if (!gen.branchCore.hasRetThisBB) {
     gen.funcCore.SetDefaultRetInfo();
