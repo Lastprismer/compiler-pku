@@ -144,36 +144,36 @@ const bool& BaseProcessor::IsEnabled() {
 
 DeclaimProcessor::DeclaimProcessor()
     : BaseProcessor(),
-      currentSymbolType(SymbolType::e_unused),
-      currentVarType(VarType::e_unused) {}
+      current_symbol_type(SymbolType::e_unused),
+      current_var_type(VarType::e_unused) {}
 
 void DeclaimProcessor::SetSymbolType(const SymbolType& type) {
   assert(IsEnabled());
-  currentSymbolType = type;
+  current_symbol_type = type;
 }
 
 void DeclaimProcessor::SetVarType(const VarType& type) {
   assert(IsEnabled());
-  currentVarType = type;
+  current_var_type = type;
 }
 
-void DeclaimProcessor::resetState() {
-  currentSymbolType = SymbolType::e_unused;
-  currentVarType = VarType::e_unused;
+void DeclaimProcessor::Reset() {
+  current_symbol_type = SymbolType::e_unused;
+  current_var_type = VarType::e_unused;
 }
 
 SymbolTableEntry DeclaimProcessor::GenerateConstEntry(const string& varName,
                                                       const int& value) {
-  assert(IsEnabled() && currentSymbolType == SymbolType::e_const &&
-         currentVarType != VarType::e_unused);
-  return SymbolTableEntry(SymbolType::e_const, currentVarType, varName, value,
+  assert(IsEnabled() && current_symbol_type == SymbolType::e_const &&
+         current_var_type != VarType::e_unused);
+  return SymbolTableEntry(SymbolType::e_const, current_var_type, varName, value,
                           RegisterVar());
 }
 
 SymbolTableEntry DeclaimProcessor::GenerateVarEntry(const string& varName) {
-  assert(IsEnabled() && currentSymbolType != SymbolType::e_unused &&
-         currentVarType != VarType::e_unused);
-  return SymbolTableEntry(currentSymbolType, currentVarType, varName,
+  assert(IsEnabled() && current_symbol_type != SymbolType::e_unused &&
+         current_var_type != VarType::e_unused);
+  return SymbolTableEntry(current_symbol_type, current_var_type, varName,
                           RegisterVar());
 }
 
@@ -184,15 +184,15 @@ SymbolTableEntry DeclaimProcessor::QuickGenEntry(const SymbolType& st,
 }
 
 const SymbolType DeclaimProcessor::getCurSymType() const {
-  return currentSymbolType;
+  return current_symbol_type;
 }
 
 const VarType DeclaimProcessor::getCurVarType() const {
-  return currentVarType;
+  return current_var_type;
 }
 
 const int DeclaimProcessor::RegisterVar() {
-  return varPool++;
+  return var_pool++;
 }
 
 #pragma endregion
@@ -213,14 +213,6 @@ const string& AssignmentProcessor::GetCurrentVar() const {
 
 SymbolManager::SymbolManager() : dproc(), aproc(), RootTable() {
   currentTable = &RootTable;
-}
-
-DeclaimProcessor& SymbolManager::getDProc() {
-  return dproc;
-}
-
-AssignmentProcessor& SymbolManager::getAProc() {
-  return aproc;
 }
 
 const SymbolTableEntry SymbolManager::getEntry(string symbol_name) {

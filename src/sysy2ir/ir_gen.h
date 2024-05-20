@@ -121,8 +121,6 @@ class FuncManager {
   // 返回值类型决定是否用符号存储其返回值
   // 不考虑参数，因为给定的程序语法一定正确
   map<string, VarType> func_table;
-  // 变量类型
-  const string getVarType(const VarType& ty) const;
   // 参数特有名称name_p
   const string getParamVarName(const string& name) const;
 };
@@ -208,6 +206,8 @@ class IRGenerator {
                               const vector<RetInfo>& params);
   // 生成库函数定义
   void WriteLibFuncDecl();
+  // 生成全局变量定义
+  void WriteGlobalVar(const SymbolTableEntry& entry, const RetInfo& init);
 #pragma endregion
 
  private:

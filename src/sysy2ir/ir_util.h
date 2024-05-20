@@ -1,7 +1,13 @@
 #pragma once
+
 #include <string>
 
 namespace ir {
+
+using std::string;
+
+enum class SymbolType { e_unused, e_const, e_var };
+enum class VarType { e_unused, e_int, e_void, e_pointer };
 
 enum OpID {
   UNARY_POS,
@@ -24,5 +30,7 @@ enum OpID {
   LG_OR,
 };
 
-std::string BiOp2koopa(OpID id);
+string BiOp2koopa(OpID id);
+
+const string GetVarType(const VarType& ty);
 }  // namespace ir

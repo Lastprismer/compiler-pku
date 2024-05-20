@@ -1,17 +1,16 @@
 #pragma once
+
 #include <cassert>
 #include <iostream>
 #include <map>
 #include <sstream>
 #include <string>
+#include "ir_util.h"
 
 namespace ir {
 using std::cerr, std::endl;
 using std::string, std::map, std::stringstream;
 class SymbolManager;
-
-enum class SymbolType { e_unused, e_const, e_var };
-enum class VarType { e_unused, e_int, e_void, e_pointer };
 
 struct SymbolTableEntry {
   // 常数或变量
@@ -54,19 +53,24 @@ class BaseProcessor {
   void Disable();
   const bool& IsEnabled();
 };
+
+// 变量声明处理器
 class DeclaimProcessor : public BaseProcessor {
  private:
   // 保证只在处理声明的语句时启用
-  SymbolType currentSymbolType;
-  VarType currentVarType;
-  int varPool;
+  SymbolType current_symbol_type;
+  VarType current_var_type;
+  int var_pool;
 
  public:
+  // 当前声明的变量是不是全局变量
+  bool global;
+
   DeclaimProcessor();
   void SetSymbolType(const SymbolType& type);
   void SetVarType(const VarType& type);
-  // 重置
-  void resetState();
+  // 重置，在函数调用完后（重置变量池）
+  void Reset();
   // 生成常数变量表项
   SymbolTableEntry GenerateConstEntry(const string& varName, const int& value);
   // 生成无初始化的变量表项
@@ -82,6 +86,7 @@ class DeclaimProcessor : public BaseProcessor {
   const int RegisterVar();
 };
 
+// 变量赋值处理器
 class AssignmentProcessor : public BaseProcessor {
  private:
   // 保证只在处理赋值的语句时启用
@@ -111,7 +116,9 @@ class SymbolTable {
 
 class SymbolManager {
  public:
+  // 变量声明处理器
   DeclaimProcessor dproc;
+  // 变量赋值处理器
   AssignmentProcessor aproc;
 
   // lv5
@@ -121,9 +128,6 @@ class SymbolManager {
   SymbolTable* currentTable;
 
   SymbolManager();
-
-  DeclaimProcessor& getDProc();
-  AssignmentProcessor& getAProc();
   // 递归从当前的表向根表查询
   const SymbolTableEntry getEntry(string symbolName);
   // 向当前的表插入

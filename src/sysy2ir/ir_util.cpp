@@ -2,7 +2,6 @@
 
 namespace ir {
 
-using namespace std;
 string BiOp2koopa(OpID id) {
   const char* s;
   switch (id) {
@@ -50,6 +49,16 @@ string BiOp2koopa(OpID id) {
       break;
   }
   return string(s);
+}
+
+const string GetVarType(const VarType& ty) {
+  switch (ty) {
+    case VarType::e_int:
+      return string("i32");
+    case VarType::e_void:
+    default:
+      return string();
+  }
 }
 
 }  // namespace ir

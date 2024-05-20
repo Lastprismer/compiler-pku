@@ -17,10 +17,23 @@ void CompRootAST::Print(ostream& os, int indent) const {
 void CompRootAST::Dump() {
   auto& gen = IRGenerator::getInstance();
   gen.WriteLibFuncDecl();
+
+  // 先处理全局变量
+  gen.symbolCore.dproc.global = true;
   for (auto it = comp_units.begin(); it != comp_units.end(); it++) {
-    (*it)->Dump();
-    gen.funcCore.Reset();
-    gen.branchCore.Reset();
+    if ((*it)->ty == CompUnitAST::e_decl) {
+      (*it)->Dump();
+    }
+  }
+  gen.symbolCore.dproc.global = false;
+  gen.setting.getOs() << endl;
+
+  for (auto it = comp_units.begin(); it != comp_units.end(); it++) {
+    if ((*it)->ty == CompUnitAST::e_func_def) {
+      (*it)->Dump();
+      gen.funcCore.Reset();
+      gen.branchCore.Reset();
+    }
   }
 }
 
@@ -73,6 +86,7 @@ void DeclAST::Print(ostream& os, int indent) const {
 
 void DeclAST::Dump() {
   decl->Dump();
+  IRGenerator::getInstance().symbolCore.dproc.Reset();
 }
 
 #pragma endregion
@@ -91,8 +105,7 @@ void ConstDeclAST::Print(ostream& os, int indent) const {
 }
 
 void ConstDeclAST::Dump() {
-  DeclaimProcessor& processor =
-      IRGenerator::getInstance().symbolCore.getDProc();
+  DeclaimProcessor& processor = IRGenerator::getInstance().symbolCore.dproc;
   processor.Enable();
   processor.SetSymbolType(SymbolType::e_const);
   btype->Dump();
@@ -147,7 +160,7 @@ void ConstDefAST::Dump() {
   auto cv = dynamic_cast<ConstInitValAST*>(const_init_val.get());
 
   // 取值加入符号表
-  DeclaimProcessor& pcs = gen.symbolCore.getDProc();
+  DeclaimProcessor& pcs = gen.symbolCore.dproc;
   SymbolTableEntry entry =
       pcs.GenerateConstEntry(var_name, cv->thisRet.GetValue());
   gen.symbolCore.InsertEntry(entry);
@@ -186,8 +199,7 @@ void VarDeclAST::Print(ostream& os, int indent) const {
 }
 
 void VarDeclAST::Dump() {
-  DeclaimProcessor& processor =
-      IRGenerator::getInstance().symbolCore.getDProc();
+  DeclaimProcessor& processor = IRGenerator::getInstance().symbolCore.dproc;
   processor.Enable();
   processor.SetSymbolType(SymbolType::e_var);
   btype->Dump();
@@ -227,19 +239,27 @@ void VarDefAST::Print(ostream& os, int indent) const {
 
 void VarDefAST::Dump() {
   IRGenerator& gen = IRGenerator::getInstance();
-  DeclaimProcessor& pcs = gen.symbolCore.getDProc();
+  DeclaimProcessor& pcs = gen.symbolCore.dproc;
 
   SymbolTableEntry entry = pcs.GenerateVarEntry(var_name);
-  gen.WriteAllocInst(entry);
   gen.symbolCore.InsertEntry(entry);
-  // 如果有初始化
-  if (init_with_val) {
-    // 类似常数的定义
-    init_val->Dump();
-    auto iv = dynamic_cast<InitValAST*>(init_val.get());
-    // 赋值，加入符号表
-    SymbolTableEntry s_entry = gen.symbolCore.getEntry(entry.var_name);
-    gen.WriteStoreInst(iv->thisRet, s_entry);
+  if (pcs.global) {
+    RetInfo init;
+    if (init_with_val) {
+      init_val->Dump();
+      auto iv = dynamic_cast<InitValAST*>(init_val.get());
+      init = iv->thisRet;
+    }
+    gen.WriteGlobalVar(entry, init);
+  } else {
+    gen.WriteAllocInst(entry);
+    if (init_with_val) {
+      init_val->Dump();
+      auto iv = dynamic_cast<InitValAST*>(init_val.get());
+      // 赋值，加入符号表
+      SymbolTableEntry s_entry = gen.symbolCore.getEntry(entry.var_name);
+      gen.WriteStoreInst(iv->thisRet, s_entry);
+    }
   }
 }
 
@@ -316,7 +336,7 @@ void FuncFParamsAST::Dump() {
   auto& gen = IRGenerator::getInstance();
   for (auto it = params.begin(); it != params.end(); it++) {
     (*it)->Dump();
-    gen.funcCore.InsertParam(gen.symbolCore.getDProc().getCurVarType(),
+    gen.funcCore.InsertParam(gen.symbolCore.dproc.getCurVarType(),
                              (*it)->param_name);
   }
 }
@@ -684,7 +704,7 @@ void SimpleStmtAST::Dump() {
   IRGenerator& gen = IRGenerator::getInstance();
   switch (st) {
     case sstmt_t::storelval: {
-      AssignmentProcessor& aproc = gen.symbolCore.getAProc();
+      AssignmentProcessor& aproc = gen.symbolCore.aproc;
       // 记录左值
       aproc.Enable();
       lval->Dump();
@@ -794,7 +814,7 @@ void LValAST::Dump() {
       // 判断是左值还是右值
       if (gen.symbolCore.aproc.IsEnabled()) {
         // 为左值，设置aproc处理当前符号
-        AssignmentProcessor& aproc = gen.symbolCore.getAProc();
+        AssignmentProcessor& aproc = gen.symbolCore.aproc;
         aproc.SetCurrentVar(var_name);
       } else {
         // 为右值，获取其临时符号
@@ -1296,7 +1316,7 @@ void LAndExpAST::Print(ostream& os, int indent) const {
 
 void LAndExpAST::Dump() {
   auto& gen = IRGenerator::getInstance();
-  auto& pcs = gen.symbolCore.getDProc();
+  auto& pcs = gen.symbolCore.dproc;
   if (laex == laex_t::LAOPEq) {
     auto la = dynamic_cast<LAndExpAST*>(laexp.get());
     auto eq = dynamic_cast<EqExpAST*>(eexp.get());
@@ -1385,7 +1405,7 @@ void LOrExpAST::Print(ostream& os, int indent) const {
 
 void LOrExpAST::Dump() {
   auto& gen = IRGenerator::getInstance();
-  auto& pcs = gen.symbolCore.getDProc();
+  auto& pcs = gen.symbolCore.dproc;
   if (loex == loex_t::LOOPLA) {
     auto la = dynamic_cast<LAndExpAST*>(laexp.get());
     auto lo = dynamic_cast<LOrExpAST*>(loexp.get());

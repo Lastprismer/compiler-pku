@@ -105,7 +105,7 @@ void FuncManager::WriteFuncPrologue() {
   os << "fun @" << func_name << "(";
   WriteParamsDefine();
   os << ") " << (ret_ty == VarType::e_void ? "" : ":")                // 格式
-     << getVarType(ret_ty) << (ret_ty == VarType::e_void ? "" : " ")  // 格式
+     << GetVarType(ret_ty) << (ret_ty == VarType::e_void ? "" : " ")  // 格式
      << "{\n"
      << setting.getIndentStr()
      << "%"
@@ -145,19 +145,19 @@ void FuncManager::WriteParamsDefine() {
   if (params.size() == 0)
     return;
   os << getParamVarName(params[0].var_name) << ": "
-     << getVarType(params[0].var_type);
+     << GetVarType(params[0].var_type);
 
   if (params.size() > 1) {
     for (auto it = ++params.begin(); it != params.end(); it++) {
       os << ", " << getParamVarName(it->var_name) << ": "
-         << getVarType(it->var_type);
+         << GetVarType(it->var_type);
     }
   }
 }
 
 void FuncManager::WriteAllocParams() {
   auto& gen = IRGenerator::getInstance();
-  auto& dproc = gen.symbolCore.getDProc();
+  auto& dproc = gen.symbolCore.dproc;
   for (auto it = params.begin(); it != params.end(); it++) {
     SymbolTableEntry entry =
         dproc.QuickGenEntry(it->symbol_type, it->var_type, it->var_name);
@@ -200,16 +200,6 @@ void FuncManager::AddLibFuncs() {
   func_table.emplace(make_pair(string("putarray"), VarType::e_void));
   func_table.emplace(make_pair(string("starttime"), VarType::e_void));
   func_table.emplace(make_pair(string("stoptime"), VarType::e_void));
-}
-
-const string FuncManager::getVarType(const VarType& ty) const {
-  switch (ty) {
-    case VarType::e_int:
-      return string("i32");
-    case VarType::e_void:
-    default:
-      return string();
-  }
 }
 
 const string FuncManager::getParamVarName(const string& name) const {
@@ -441,6 +431,18 @@ decl @starttime()
 decl @stoptime())EOF"
      << endl;
   funcCore.AddLibFuncs();
+}
+
+void IRGenerator::WriteGlobalVar(const SymbolTableEntry& entry,
+                                 const RetInfo& init) {
+  auto& os = setting.getOs();
+  os << "global " << entry.GetAllocName() << " = alloc "
+     << GetVarType(entry.var_type) << ", ";
+  if (init.ty == RetInfo::ty_void) {
+    os << "zeroinit" << endl;
+  } else {
+    os << init.GetValue() << endl;
+  }
 }
 
 const int IRGenerator::registerNewVar() {
