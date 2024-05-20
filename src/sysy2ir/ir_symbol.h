@@ -10,17 +10,17 @@ using std::cerr, std::endl;
 using std::string, std::map, std::stringstream;
 class SymbolManager;
 
-enum class SymbolType { UNUSED, CONST, VAR };
-enum class VarType { UNUSED, INT };
+enum class SymbolType { e_unused, e_const, e_var };
+enum class VarType { e_unused, e_int, e_void, e_func };
 
 struct SymbolTableEntry {
   // 常数或变量
-  SymbolType symbolType;
+  SymbolType symbol_type;
   // 变量类型
-  VarType varType;
+  VarType var_type;
   // 懒得union
-  string varName;
-  int value;
+  string var_name;
+  int const_value;
 
   int id;
   SymbolTableEntry();
@@ -28,11 +28,11 @@ struct SymbolTableEntry {
                    VarType var_ty,
                    string var_name,
                    int value,
-                   int layer);
+                   int uuid);
   SymbolTableEntry(SymbolType symbol_ty,
                    VarType var_ty,
                    string var_name,
-                   int layer);
+                   int uuid);
   // @ + name
   const string GetAllocName() const;
   // 声明的指令
@@ -71,12 +71,14 @@ class DeclaimProcessor : public BaseProcessor {
   SymbolTableEntry GenerateConstEntry(const string& varName, const int& value);
   // 生成无初始化的变量表项
   SymbolTableEntry GenerateVarEntry(const string& varName);
-  // 即时生成表项
+  // 即时生成表项，用于短路运算临时变量，不插入符号表
   SymbolTableEntry QuickGenEntry(const SymbolType& st,
                                  const VarType& vt,
                                  string name);
   // 获取当前正在初始化的变量的类型（逻辑运算的编译时常数用）
-  const SymbolType& getCurSymType() const;
+  const SymbolType getCurSymType() const;
+  // 获取当前正在初始化的变量的类型（逻辑运算的编译时常数用）
+  const VarType getCurVarType() const;
   const int RegisterVar();
 };
 

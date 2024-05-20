@@ -6,9 +6,12 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <vector>
 #include "ir_symbol.h"
 #include "ir_util.h"
 #include "output_setting.h"
+
+using std::vector;
 
 namespace ir {
 // 栈内元素类型
@@ -46,8 +49,13 @@ struct LoopInfo {
   LoopInfo();
 };
 
+#pragma region Branch
+
 class BranchManager {
  public:
+  // 本块中已经返回过
+  bool hasRetThisBB;
+
   BranchManager();
   // 生成新标签ID
   const int registerNewBB();
@@ -61,11 +69,63 @@ class BranchManager {
   const bool IsInALoop() const;
   // 为了break和continue生成一个不可达的label
   const string GenerateLabelFromBranchedLoop();
+  // 刷新状态
+  void Reset();
 
  private:
   int bbPool;
   deque<LoopInfo> loopStack;
 };
+
+#pragma endregion
+
+#pragma region Func
+
+class FuncManager {
+ public:
+  FuncManager();
+
+  string func_name;
+  VarType ret_ty;
+  RetInfo ret_info;
+  // 函数参数
+  vector<SymbolTableEntry> params;
+
+  // 生成函数开头
+  void WriteFuncPrologue();
+  // 生成函数屁股
+  void WriteFuncEpilogue();
+  // 生成返回指令
+  void WriteRetInst();
+  // 获取临时变量ID
+  const int registerNewSymbol();
+  // 插入参数信息
+  void InsertParam(VarType ty, string name);
+  // 打印参数信息，在函数定义处
+  void WriteParamsDefine();
+  // 为参数分配新的变量，函数定义完后
+  void WriteAllocParams();
+  // 刷新状态
+  void Reset();
+  // 设置返回值为函数对应返回值的默认retinfo
+  void SetDefaultRetInfo();
+  // 返回函数表
+  const map<string, VarType>& GetFuncTable() const;
+
+ private:
+  // 临时符号ID
+  int symbolPool;
+  // 函数表，包含函数名和返回值类型
+  // 返回值类型决定是否用符号存储其返回值
+  // 不考虑参数，因为给定的程序语法一定正确
+  map<string, VarType> func_table;
+  // 变量类型
+  const string getVarType(const VarType& ty) const;
+  // 参数特有名称name_p
+  const string getParamVarName(const string& name) const;
+};
+
+#pragma endregion
 
 class IRGenerator {
  private:
@@ -78,12 +138,11 @@ class IRGenerator {
   static IRGenerator& getInstance();
   GenSettings setting;
 
-  string funcName;
-  string returnType;
-  RetInfo funcRetInfo;
-
   SymbolManager symbolCore;
   BranchManager branchCore;
+  FuncManager funcCore;
+
+#pragma region lv3
 
   // 生成函数开头
   void WriteFuncPrologue();
@@ -91,9 +150,6 @@ class IRGenerator {
   void WriteFuncEpilogue();
   // 生成返回指令
   void WriteRetInst();
-
-#pragma region lv3
-
   // 输入单目运算符，输出指令
   const RetInfo WriteUnaryInst(const RetInfo& left, OpID op);
   // 输入双目运算符，输出指令
@@ -119,8 +175,6 @@ class IRGenerator {
 
 #pragma region lv6
 
-  // 本块中已经返回过
-  bool hasRetThisBB;
   // 生成块开头（仅标签）
   void WriteBasicBlockPrologue(const int& bb_id);
   // 生成if判断指令（br），label存在Ifinfo中
@@ -145,11 +199,15 @@ class IRGenerator {
 
 #pragma endregion
 
- private:
-  // 临时符号ID
-  int symbolPool;
-  const int registerNewSymbol();
+#pragma region lv8
 
+  // 生成call指令
+  const RetInfo WriteCallInst(const string& func_name,
+                              const vector<RetInfo>& params);
+
+#pragma endregion
+
+ private:
   const int registerNewVar();
   const string getSymbolName(const int& symbol) const;
   const string getLabelName(const int& bb_id) const;

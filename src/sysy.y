@@ -42,33 +42,62 @@ using namespace std;
 %token OPLE OPLT OPGE OPGT OPEQ OPNE OPAND OPOR
 %token CONST
 %token IF ELSE WHILE CONTINUE BREAK
+%token VOID
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
 // 非终结符的类型定义
-%type <ast_val> FuncDef FuncType Block
+%type <ast_val> FuncDef BType Block
 %type <ast_val> Exp PrimaryExp Number UnaryExp MulExp AddExp RelExp EqExp LAndExp LOrExp
-// lv4-const
-%type <ast_val> Decl ConstDecl BType ConstDef ConstDeclList ConstInitVal LVal BlockList BlockItem ConstExp
+// lv4 - const
+%type <ast_val> Decl ConstDecl ConstDef ConstDeclList ConstInitVal LVal BlockList BlockItem ConstExp
 %type <ast_val> VarDecl VarDef InitVal VarDeclList
-// lv6-if
+// lv6 - if
 %type <ast_val> Stmt OpenStmt ClosedStmt SimpleStmt
+// lv8 - func
+%type <ast_val> CompUnit CompUnitList FuncFParams FuncFParamsList FuncFParam FuncRParams FuncRParamsList
 
 %define parse.error verbose
 
 %%
 
-// 开始符, CompUnit ::= FuncDef, 大括号后声明了解析完成后 parser 要做的事情
-// 之前我们定义了 FuncDef 会返回一个 str_val, 也就是字符串指针
-// 而 parser 一旦解析完 CompUnit, 就说明所有的 token 都被解析了, 即解析结束了
-// 此时我们应该把 FuncDef 返回的结果收集起来, 作为 AST 传给调用 parser 的函数
-// $1 指代规则里第一个符号的返回值, 也就是 FuncDef 的返回值
-// CompUnit      ::= FuncDef;
+// CompRoot        ::= CompUnitList
+CompRoot
+  : CompUnitList {
+    auto comp_root = make_unique<CompRootAST>();
+    auto list = unique_ptr<CompUnitListUnit>(dynamic_cast<CompUnitListUnit*>($1));
+    for (auto it = list->comp_units.rbegin(); it != list->comp_units.rend(); ++it) {
+      comp_root->comp_units.push_back(unique_ptr<CompUnitAST>(*it));
+    }
+    ast = move(comp_root);
+  }
+  ;
+
+// CompUnitList    ::= CompUnit CompUnitList | epsilon
+CompUnitList
+  : CompUnit CompUnitList {
+    (dynamic_cast<CompUnitListUnit*>($2))->comp_units.push_back(dynamic_cast<CompUnitAST*>($1));
+    $$ = $2;
+  }
+  | {
+    auto ast = new CompUnitListUnit();
+    $$ = ast;
+  }
+  ;
+
+// CompUnit        ::= FuncDef | Decl;
 CompUnit
   : FuncDef {
-    auto comp_unit = make_unique<CompUnitAST>();
-    comp_unit->func_def = unique_ptr<BaseAST>($1);
-    ast = move(comp_unit);
+    auto ast = new CompUnitAST();
+    ast->ty = CompUnitAST::comp_unit_ty::e_func_def;
+    ast->content = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | Decl {
+    auto ast = new CompUnitAST();
+    ast->ty = CompUnitAST::comp_unit_ty::e_decl;
+    ast->content = unique_ptr<BaseAST>($1);
+    $$ = ast;
   }
   ;
 
@@ -76,13 +105,13 @@ CompUnit
 Decl
   : ConstDecl {
     auto ast = new DeclAST();
-    ast->de = DeclAST::de_t::CONST;
+    ast->de = DeclAST::de_t::e_const;
     ast->decl = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | VarDecl {
     auto ast = new DeclAST();
-    ast->de = DeclAST::de_t::VAR;
+    ast->de = DeclAST::de_t::e_var;
     ast->decl = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
@@ -95,8 +124,8 @@ ConstDecl
     auto ast = new ConstDeclAST();
     ast->btype = unique_ptr<BaseAST>($2);
     // 插入开头def
-    ast->const_defs.push_back(unique_ptr<ConstDefAST>((ConstDefAST*)$3));
-    auto list = unique_ptr<ConstDeclListUnit>((ConstDeclListUnit*)$4);
+    ast->const_defs.push_back(unique_ptr<ConstDefAST>(dynamic_cast<ConstDefAST*>($3)));
+    auto list = unique_ptr<ConstDeclListUnit>(dynamic_cast<ConstDeclListUnit*>($4));
     // 插入剩余def
     for (auto it = list->const_defs.rbegin(); it != list->const_defs.rend(); ++it) {
       ast->const_defs.push_back(unique_ptr<ConstDefAST>(*it));
@@ -108,7 +137,7 @@ ConstDecl
 // ConstDeclList  ::= "," ConstDef ConstDeclList | epsilon
 ConstDeclList
   : ',' ConstDef ConstDeclList {
-    ((ConstDeclListUnit*)$3)->const_defs.push_back((ConstDefAST*)$2);
+    (dynamic_cast<ConstDeclListUnit*>($3))->const_defs.push_back(dynamic_cast<ConstDefAST*>($2));
     $$ = $3;
   }
   | {
@@ -117,11 +146,16 @@ ConstDeclList
   }
   ;
 
-// BType         ::= "int";
+// BType         ::= "int" | "void"
 BType
   : INT {
     auto ast = new BTypeAST();
-    ast->btype = string("int");
+    ast->ty = BTypeAST::btype_t::e_int;
+    $$ = ast;
+  }
+  | VOID {
+    auto ast = new BTypeAST();
+    ast->ty = BTypeAST::btype_t::e_void;
     $$ = ast;
   }
   ;
@@ -152,8 +186,8 @@ VarDecl
     auto ast = new VarDeclAST();
     ast->btype = unique_ptr<BaseAST>($1);
     // 插入开头def
-    ast->var_defs.push_back(unique_ptr<VarDefAST>((VarDefAST*)$2));
-    auto list = unique_ptr<VarDeclListUnit>((VarDeclListUnit*)$3);
+    ast->var_defs.push_back(unique_ptr<VarDefAST>(dynamic_cast<VarDefAST*>($2)));
+    auto list = unique_ptr<VarDeclListUnit>(dynamic_cast<VarDeclListUnit*>($3));
     // 插入剩余def
     for (auto it = list->var_defs.rbegin(); it != list->var_defs.rend(); ++it) {
       ast->var_defs.push_back(unique_ptr<VarDefAST>(*it));
@@ -165,7 +199,7 @@ VarDecl
 // VarDeclList     ::= "," VarDef VarDeclList | epsilon
 VarDeclList
   : ',' VarDef VarDeclList {
-    ((VarDeclListUnit*)$3)->var_defs.push_back((VarDefAST*)$2);
+    (dynamic_cast<VarDeclListUnit*>($3))->var_defs.push_back(dynamic_cast<VarDefAST*>($2));
     $$ = $3;
   }
   | {
@@ -200,21 +234,53 @@ InitVal
   }
   ;
 
-// FuncDef   ::= FuncType IDENT "(" ")" Block;
+// FuncDef         ::= FuncType IDENT "(" FuncFParams ")" Block
 FuncDef
-  : FuncType IDENT '(' ')' Block {
+  : BType IDENT '(' FuncFParams ')' Block {
     auto ast = new FuncDefAST();
     ast->func_type = unique_ptr<BaseAST>($1);
     ast->func_name = *unique_ptr<string>($2);
-    ast->block = unique_ptr<BaseAST>($5);
+    ast->params = unique_ptr<BaseAST>($4);
+    ast->block = unique_ptr<BaseAST>($6);
     $$ = ast;
   }
   ;
 
-// FuncType  ::= "int";
-FuncType
-  : INT {
-    auto ast = new FuncTypeAST();
+// FuncFParams     ::= FuncFParam FuncFParamsList | epsilon
+FuncFParams
+  : FuncFParam FuncFParamsList {
+    auto ast = new FuncFParamsAST();
+    ast->params.push_back(unique_ptr<FuncFParamAST>(dynamic_cast<FuncFParamAST*>($1)));
+    auto list = unique_ptr<FuncFParamsListUnit>(dynamic_cast<FuncFParamsListUnit*>($2));
+    for (auto it = list->params.rbegin(); it != list->params.rend(); ++it) {
+      ast->params.push_back(unique_ptr<FuncFParamAST>(*it));
+    }
+    $$ = ast;
+  }
+  | {
+    auto ast = new FuncFParamsAST();
+    $$ = ast;
+  }
+  ;
+
+// FuncFParamsList       ::= "," FuncFParam FuncFParamsList | epsilon
+FuncFParamsList
+  : ',' FuncFParam FuncFParamsList {
+    (dynamic_cast<FuncFParamsListUnit*>($3))->params.push_back(dynamic_cast<FuncFParamAST*>($2));
+    $$ = $3;
+  }
+  | {
+    auto ast = new FuncFParamsListUnit();
+    $$ = ast;
+  }
+  ;
+
+// FuncFParam      ::= BType IDENT
+FuncFParam
+  : BType IDENT {
+    auto ast = new FuncFParamAST();
+    ast->ty = unique_ptr<BaseAST>($1);
+    ast->param_name = *unique_ptr<string>($2);
     $$ = ast;
   }
   ;
@@ -225,7 +291,7 @@ Block
     auto ast = new BlockAST();
 
     // 插入item
-    auto list = unique_ptr<BlockListUnit>((BlockListUnit*)$2);
+    auto list = unique_ptr<BlockListUnit>(dynamic_cast<BlockListUnit*>($2));
     for (auto it = list->block_items.rbegin(); it != list->block_items.rend(); ++it) {
       auto ptr = *it;
       ast->block_items.push_back(unique_ptr<BlockItemAST>(ptr));
@@ -237,7 +303,7 @@ Block
 // BlockList  ::= BlockItem BlockList | epsilon
 BlockList
   : BlockItem BlockList {
-    ((BlockListUnit*)$2)->block_items.push_back((BlockItemAST*)$1);
+    (dynamic_cast<BlockListUnit*>($2))->block_items.push_back(dynamic_cast<BlockItemAST*>($1));
     $$ = $2;
   }
   | {
@@ -454,10 +520,12 @@ Number
   ;
 
 /*
-UnaryExp    ::= PrimaryExp
-              | "+" UnaryExp
-              | "-" UnaryExp
-              | "!" UnaryExp;
+UnaryExp        ::= PrimaryExp
+                  | "+" UnaryExp
+                  | "-" UnaryExp
+                  | "!" UnaryExp
+                  | IDENT "(" FuncRParams ")"
+                  | IDENT "(" ")"
 */
 UnaryExp
   : PrimaryExp {
@@ -485,6 +553,44 @@ UnaryExp
     ast->uex = UnaryExpAST::uex_t::OPUnary;
     ast->uop = UnaryExpAST::uop_t::Not;
     ast->exp = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  | IDENT '(' FuncRParams ')' {
+    auto ast = new UnaryExpAST();
+    ast->uex = UnaryExpAST::uex_t::FuncWithParam;
+    ast->func_name = *unique_ptr<string>($1);
+    ast->params = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  | IDENT '(' ')' {
+    auto ast = new UnaryExpAST();
+    ast->uex = UnaryExpAST::uex_t::FuncNoParam;
+    ast->func_name = *unique_ptr<string>($1);
+    $$ = ast;
+  }
+  ;
+
+// FuncRParams     ::= Exp FuncRParamsList;
+FuncRParams
+  : Exp FuncRParamsList {
+    auto ast = new FuncRParamsAST();
+    ast->params.push_back(unique_ptr<ExpAST>(dynamic_cast<ExpAST*>($1)));
+    auto list = unique_ptr<FuncRParamsListUnit>(dynamic_cast<FuncRParamsListUnit*>($2));
+    for (auto it = list->params.rbegin(); it != list->params.rend(); ++it) {
+      ast->params.push_back(unique_ptr<ExpAST>(*it));
+    }
+    $$ = ast;
+  }
+  ;
+
+// FuncRParamsList ::= "," Exp FuncRParamsList | epsilon
+FuncRParamsList
+  : ',' Exp FuncRParamsList {
+    (dynamic_cast<FuncRParamsListUnit*>($3))->params.push_back(dynamic_cast<ExpAST*>($2));
+    $$ = $3;
+  }
+  | {
+    auto ast = new FuncRParamsListUnit();
     $$ = ast;
   }
   ;
@@ -658,6 +764,7 @@ ConstExp
     ast->exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
+  ;
 
 %%
 

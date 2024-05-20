@@ -11,20 +11,20 @@ RetInfo::RetInfo(int _value) : ty(ty_int), value(_value) {}
 RetInfo::RetInfo(string _symbol) : ty(ty_sbl), name(_symbol) {}
 
 const int& RetInfo::GetValue() const {
-  // assert(ty == ty_int);
+  assert(ty == ty_int);
   return value;
 }
 
 const string& RetInfo::GetSym() const {
-  // assert(ty == ty_sbl);
+  assert(ty == ty_sbl);
   return name;
 }
 
 const string RetInfo::GetInfo() const {
   switch (ty) {
-    case RetInfo::retty_t::ty_int:
+    case retty_t::ty_int:
       return to_string(GetValue());
-    case RetInfo::retty_t::ty_sbl:
+    case retty_t::ty_sbl:
       return GetSym();
     default:
       return "";
@@ -56,7 +56,7 @@ LoopInfo::LoopInfo() {}
 
 #pragma region Branch
 
-BranchManager::BranchManager() : bbPool(0), loopStack() {}
+BranchManager::BranchManager() : hasRetThisBB(false), bbPool(0), loopStack() {}
 
 const int BranchManager::registerNewBB() {
   return bbPool++;
@@ -82,18 +82,135 @@ const string BranchManager::GenerateLabelFromBranchedLoop() {
   return '%' + string("unreachable_in_loop_") + to_string(registerNewBB());
 }
 
+void BranchManager::Reset() {
+  assert(loopStack.size() == 0);
+  bbPool = 0;
+  hasRetThisBB = false;
+}
+
+#pragma endregion
+
+#pragma region func
+
+FuncManager::FuncManager()
+    : func_name(), ret_ty(), ret_info(), symbolPool(0), func_table() {}
+
+void FuncManager::WriteFuncPrologue() {
+  // 记入函数表
+  func_table.emplace(make_pair(func_name, ret_ty));
+
+  auto& setting = IRGenerator::getInstance().setting;
+  auto& os = setting.getOs();
+
+  os << "fun @" << func_name << "(";
+  WriteParamsDefine();
+  os << ") " << (ret_ty == VarType::e_void ? "" : ":")                // 格式
+     << getVarType(ret_ty) << (ret_ty == VarType::e_void ? "" : " ")  // 格式
+     << "{\n"
+     << setting.getIndentStr()
+     << "%"
+        "entry:"
+     << endl;
+  setting.getIndent() += 2;
+  WriteAllocParams();
+  return;
+}
+
+void FuncManager::WriteFuncEpilogue() {
+  auto& setting = IRGenerator::getInstance().setting;
+  auto& os = setting.getOs();
+  os << "}\n" << endl;
+  setting.getIndent() -= 2;
+  return;
+}
+
+void FuncManager::WriteRetInst() {
+  auto& setting = IRGenerator::getInstance().setting;
+  auto& os = setting.getOs();
+  os << setting.getIndentStr() << "ret " << ret_info.GetInfo() << endl;
+  IRGenerator::getInstance().branchCore.hasRetThisBB = true;
+}
+
+const int FuncManager::registerNewSymbol() {
+  return symbolPool++;
+}
+
+void FuncManager::InsertParam(VarType ty, string name) {
+  assert(ty == VarType::e_int);
+  params.push_back(SymbolTableEntry(SymbolType::e_var, ty, name, -1));
+}
+
+void FuncManager::WriteParamsDefine() {
+  auto& os = IRGenerator::getInstance().setting.getOs();
+  if (params.size() == 0)
+    return;
+  os << getParamVarName(params[0].var_name) << ": "
+     << getVarType(params[0].var_type);
+
+  if (params.size() > 1) {
+    for (auto it = ++params.begin(); it != params.end(); it++) {
+      os << ", " << getParamVarName(it->var_name) << ": "
+         << getVarType(it->var_type);
+    }
+  }
+}
+
+void FuncManager::WriteAllocParams() {
+  auto& gen = IRGenerator::getInstance();
+  auto& dproc = gen.symbolCore.getDProc();
+  for (auto it = params.begin(); it != params.end(); it++) {
+    SymbolTableEntry entry =
+        dproc.QuickGenEntry(it->symbol_type, it->var_type, it->var_name);
+    gen.WriteAllocInst(entry);
+    gen.symbolCore.InsertEntry(entry);
+    RetInfo tmp(getParamVarName(it->var_name));
+    gen.WriteStoreInst(tmp, entry);
+  }
+}
+
+void FuncManager::Reset() {
+  func_name = string();
+  ret_ty = VarType::e_int;
+  ret_info = RetInfo();
+  symbolPool = 0;
+  params.clear();
+}
+
+void FuncManager::SetDefaultRetInfo() {
+  switch (ret_ty) {
+    case VarType::e_int:
+      ret_info = RetInfo(0);
+      break;
+    case VarType::e_void:
+    default:
+      ret_info = RetInfo();
+  }
+}
+
+const map<string, VarType>& FuncManager::GetFuncTable() const {
+  return func_table;
+}
+
+const string FuncManager::getVarType(const VarType& ty) const {
+  switch (ty) {
+    case VarType::e_int:
+      return string("i32");
+    case VarType::e_void:
+    default:
+      return string();
+  }
+}
+
+const string FuncManager::getParamVarName(const string& name) const {
+  // %符号命名不会和默认@符号冲突，且变量名不可能是数字
+  return "%" + name;
+}
 #pragma endregion
 
 #pragma region IRGen - Class
 
-IRGenerator::IRGenerator() : symbolCore() {
+IRGenerator::IRGenerator() : symbolCore(), branchCore(), funcCore() {
   setting.setOs(cout).setIndent(0);
-
-  symbolPool = 0;
-  hasRetThisBB = false;
-  funcName = "";
-  returnType = "";
-  funcRetInfo = RetInfo();
 }
 
 IRGenerator& IRGenerator::getInstance() {
@@ -103,33 +220,19 @@ IRGenerator& IRGenerator::getInstance() {
 
 #pragma endregion
 
-#pragma region IRGen - lv1
+#pragma region IRGen - lv3
 
 void IRGenerator::WriteFuncPrologue() {
-  setting.getOs() << "fun @" << funcName << "(): " << returnType << " {\n"
-                  << setting.getIndentStr()
-                  << "%"
-                     "entry:"
-                  << endl;
-  setting.getIndent() += 2;
-  return;
+  funcCore.WriteFuncPrologue();
 }
 
 void IRGenerator::WriteFuncEpilogue() {
-  ostream& os = setting.getOs();
-  os << "}" << endl;
-  return;
+  funcCore.WriteFuncEpilogue();
 }
 
 void IRGenerator::WriteRetInst() {
-  ostream& os = setting.getOs();
-  os << setting.getIndentStr() << "ret " << funcRetInfo.GetInfo() << endl;
-  hasRetThisBB = true;
+  funcCore.WriteRetInst();
 }
-
-#pragma endregion
-
-#pragma region IRGen - lv3
 
 const RetInfo IRGenerator::WriteUnaryInst(const RetInfo& left, OpID op) {
   if (op == OpID::UNARY_POS) {
@@ -156,7 +259,7 @@ const RetInfo IRGenerator::WriteBinaryInst(const RetInfo& left,
     return RetInfo(calcConstExpr(left.GetValue(), right.GetValue(), op));
   }
 
-  const string newSymbolName = getSymbolName(registerNewSymbol());
+  const string newSymbolName = getSymbolName(funcCore.registerNewSymbol());
   os << setting.getIndentStr() << newSymbolName << " = " << BiOp2koopa(op)
      << ' ' << left.GetInfo() << ", " << right.GetInfo() << endl;
   return RetInfo(newSymbolName);
@@ -182,7 +285,7 @@ void IRGenerator::WriteAllocInst(const SymbolTableEntry& entry) {
 
 const RetInfo IRGenerator::WriteLoadInst(const SymbolTableEntry& entry) {
   ostream& os = setting.getOs();
-  const string newSymbolName = getSymbolName(registerNewSymbol());
+  const string newSymbolName = getSymbolName(funcCore.registerNewSymbol());
   os << setting.getIndentStr() << entry.GetLoadInst(newSymbolName) << endl;
   return RetInfo(newSymbolName);
 }
@@ -250,12 +353,16 @@ void IRGenerator::WriteLabel(const string& labelName) {
   ostream& os = getInstance().setting.getOs();
   os << "\n" << labelName << ":" << endl;
   // 新块的开始
-  hasRetThisBB = false;
+  branchCore.hasRetThisBB = false;
 }
 
 const string IRGenerator::registerShortCircuitVar() {
   return string("if_") + to_string(registerNewVar());
 }
+
+#pragma endregion
+
+#pragma region lv7
 
 void IRGenerator::InitLoopInfo(LoopInfo& info) {
   info.cond_label = branchCore.registerNewBB();
@@ -270,8 +377,44 @@ void IRGenerator::WriteBrInst(const RetInfo& cond, LoopInfo& loopInfo) {
      << getLabelName(loopInfo.next_label) << endl;
 }
 
-const int IRGenerator::registerNewSymbol() {
-  return symbolPool++;
+#pragma endregion
+
+#pragma region lv8
+
+#pragma endregion
+
+const RetInfo IRGenerator::WriteCallInst(const string& func_name,
+                                         const vector<RetInfo>& params) {
+  auto& os = setting.getOs();
+  os << setting.getIndentStr();
+
+  // 查函数表，保存值
+  bool hasRetValue = false;
+  string newSymbolName;
+  auto& funcTbl = funcCore.GetFuncTable();
+  if (funcTbl.at(func_name) == VarType::e_int) {
+    newSymbolName = getSymbolName(funcCore.registerNewSymbol());
+    os << newSymbolName << " = ";
+    hasRetValue = true;
+  }
+
+  os << "call @" << func_name << "(";
+
+  int len = params.size();
+  if (len > 0) {
+    os << params[0].GetInfo();
+    for (int i = 1; i < len; i++) {
+      os << ", " << params[i].GetInfo();
+    }
+  }
+
+  os << ")" << endl;
+
+  if (hasRetValue) {
+    return RetInfo(newSymbolName);
+  } else {
+    return RetInfo();
+  }
 }
 
 const int IRGenerator::registerNewVar() {

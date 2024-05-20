@@ -1,36 +1,35 @@
 #include "ir_symbol.h"
 
 namespace ir {
-
 #pragma region STE
 
 SymbolTableEntry::SymbolTableEntry()
-    : symbolType(SymbolType::UNUSED), varType(VarType::UNUSED), id(-1) {}
+    : symbol_type(SymbolType::e_unused), var_type(VarType::e_unused), id(-1) {}
 
 SymbolTableEntry::SymbolTableEntry(SymbolType _stype,
                                    VarType _vtype,
                                    string _var_name,
                                    int _const_value,
                                    int uuid)
-    : symbolType(_stype),
-      varType(_vtype),
-      varName(_var_name),
-      value(_const_value),
+    : symbol_type(_stype),
+      var_type(_vtype),
+      var_name(_var_name),
+      const_value(_const_value),
       id(uuid) {}
 
 SymbolTableEntry::SymbolTableEntry(SymbolType _stype,
                                    VarType _vtype,
                                    string _var_name,
                                    int uuid)
-    : symbolType(_stype), varType(_vtype), varName(_var_name), id(uuid) {}
+    : symbol_type(_stype), var_type(_vtype), var_name(_var_name), id(uuid) {}
 
 const string SymbolTableEntry::GetAllocName() const {
-  return "@" + varName + '_' + std::to_string(id);
+  return "@" + var_name + '_' + std::to_string(id);
 }
 
 const string SymbolTableEntry::GetAllocInst() const {
-  // assert(symbolType == SymbolType::VAR);
-  if (varType == VarType::INT) {
+  assert(symbol_type == SymbolType::e_var);
+  if (var_type == VarType::e_int) {
     // int
     // @x = alloc i32
     stringstream ss;
@@ -38,15 +37,15 @@ const string SymbolTableEntry::GetAllocInst() const {
     return ss.str();
   } else {
     cerr << "[NOT SUPPORTED]" << endl;
-    // assert(false);
+    assert(false);
     return "";
   }
 }
 
 const string SymbolTableEntry::GetLoadInst(
     const string& loadToSymbolName) const {
-  // assert(symbolType == SymbolType::VAR);
-  if (varType == VarType::INT) {
+  assert(symbol_type == SymbolType::e_var);
+  if (var_type == VarType::e_int) {
     // int
     // %0 = load @x
     stringstream ss;
@@ -54,15 +53,15 @@ const string SymbolTableEntry::GetLoadInst(
     return ss.str();
   } else {
     cerr << "[NOT SUPPORTED]" << endl;
-    // assert(false);
+    assert(false);
     return "";
   }
 }
 
 const string SymbolTableEntry::GetStoreInst(
     const string& storeFromSymbolName) const {
-  // assert(symbolType == SymbolType::VAR);
-  if (varType == VarType::INT) {
+  assert(symbol_type == SymbolType::e_var);
+  if (var_type == VarType::e_int) {
     // int
     // store %0, @x
     stringstream ss;
@@ -70,14 +69,14 @@ const string SymbolTableEntry::GetStoreInst(
     return ss.str();
   } else {
     cerr << "[NOT SUPPORTED]" << endl;
-    // assert(false);
+    assert(false);
     return "";
   }
 }
 
 const string SymbolTableEntry::GetStoreInst(const int& imm) const {
   // (symbolType == SymbolType::VAR);
-  if (varType == VarType::INT) {
+  if (var_type == VarType::e_int) {
     // int
     // store 0, @x
     stringstream ss;
@@ -85,7 +84,7 @@ const string SymbolTableEntry::GetStoreInst(const int& imm) const {
     return ss.str();
   } else {
     cerr << "[NOT SUPPORTED]" << endl;
-    // assert(false);
+    assert(false);
     return "";
   }
 }
@@ -105,16 +104,16 @@ bool SymbolTable::TryGetEntry(string symbol_name, SymbolTableEntry& out) const {
 }
 
 void SymbolTable::InsertEntry(const SymbolTableEntry& entry) {
-  if (table.find(entry.varName) != table.end()) {
-    cerr << "Symbol Table insert error: symbol with name \"" << entry.varName
+  if (table.find(entry.var_name) != table.end()) {
+    cerr << "Symbol Table insert error: symbol with name \"" << entry.var_name
          << "\" has already inserted in the table. It will be overwritten by "
             "default"
          << endl;
-    table[entry.varName] = entry;
+    table[entry.var_name] = entry;
     return;
   }
   // do actual insert
-  table.emplace(make_pair(entry.varName, entry));
+  table.emplace(make_pair(entry.var_name, entry));
 }
 
 void SymbolTable::ClearTable() {
@@ -145,8 +144,8 @@ const bool& BaseProcessor::IsEnabled() {
 
 DeclaimProcessor::DeclaimProcessor()
     : BaseProcessor(),
-      currentSymbolType(SymbolType::UNUSED),
-      currentVarType(VarType::UNUSED) {}
+      currentSymbolType(SymbolType::e_unused),
+      currentVarType(VarType::e_unused) {}
 
 void DeclaimProcessor::SetSymbolType(const SymbolType& type) {
   assert(IsEnabled());
@@ -159,21 +158,21 @@ void DeclaimProcessor::SetVarType(const VarType& type) {
 }
 
 void DeclaimProcessor::resetState() {
-  currentSymbolType = SymbolType::UNUSED;
-  currentVarType = VarType::UNUSED;
+  currentSymbolType = SymbolType::e_unused;
+  currentVarType = VarType::e_unused;
 }
 
 SymbolTableEntry DeclaimProcessor::GenerateConstEntry(const string& varName,
                                                       const int& value) {
-  assert(IsEnabled() && currentSymbolType == SymbolType::CONST &&
-         currentVarType != VarType::UNUSED);
-  return SymbolTableEntry(SymbolType::CONST, currentVarType, varName, value,
+  assert(IsEnabled() && currentSymbolType == SymbolType::e_const &&
+         currentVarType != VarType::e_unused);
+  return SymbolTableEntry(SymbolType::e_const, currentVarType, varName, value,
                           RegisterVar());
 }
 
 SymbolTableEntry DeclaimProcessor::GenerateVarEntry(const string& varName) {
-  assert(IsEnabled() && currentSymbolType != SymbolType::UNUSED &&
-         currentVarType != VarType::UNUSED);
+  assert(IsEnabled() && currentSymbolType != SymbolType::e_unused &&
+         currentVarType != VarType::e_unused);
   return SymbolTableEntry(currentSymbolType, currentVarType, varName,
                           RegisterVar());
 }
@@ -184,8 +183,12 @@ SymbolTableEntry DeclaimProcessor::QuickGenEntry(const SymbolType& st,
   return SymbolTableEntry(st, vt, name, RegisterVar());
 }
 
-const SymbolType& DeclaimProcessor::getCurSymType() const {
+const SymbolType DeclaimProcessor::getCurSymType() const {
   return currentSymbolType;
+}
+
+const VarType DeclaimProcessor::getCurVarType() const {
+  return currentVarType;
 }
 
 const int DeclaimProcessor::RegisterVar() {
@@ -229,7 +232,7 @@ const SymbolTableEntry SymbolManager::getEntry(string symbol_name) {
     search = search->parent;
   }
   cerr << "SymbolManager: don't find symbol with name " << symbol_name << endl;
-  // assert(false);
+  assert(false);
   return SymbolTableEntry();
 }
 

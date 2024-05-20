@@ -15,26 +15,29 @@ using namespace std;
 using ir::RetInfo;
 
 /*
-CompUnit        ::= FuncDef;
+CompRoot        ::= CompUnitList
+CompUnitList    ::= CompUnit CompUnitList | epsilon
+CompUnit        ::= FuncDef | Decl;
 
 变量定义：
-Decl            ::= ConstDecl | VarDecl;
-ConstDecl       ::= "const" BType ConstDef ConstDeclList ";";
+Decl            ::= ConstDecl | VarDecl
+ConstDecl       ::= "const" BType ConstDef ConstDeclList ";"
 ConstDeclList   ::= "," ConstDef ConstDeclList | epsilon
 
-BType           ::= "int";
-ConstDef        ::= IDENT "=" ConstInitVal;
-ConstInitVal    ::= ConstExp;
-VarDecl         ::= BType VarDef VarDeclList ";";
+BType           ::= "int" | "void"
+ConstDef        ::= IDENT "=" ConstInitVal
+ConstInitVal    ::= ConstExp
+VarDecl         ::= BType VarDef VarDeclList ";"
 VarDeclList     ::= "," VarDef VarDeclList | epsilon
-VarDef          ::= IDENT | IDENT "=" InitVal;
-InitVal         ::= Exp;
+VarDef          ::= IDENT | IDENT "=" InitVal
+InitVal         ::= Exp
 
 
 函数定义：
-FuncDef         ::= FuncType IDENT "(" ")" Block;
-FuncType        ::= "int";
-
+FuncDef         ::= BType IDENT "(" FuncFParams ")" Block
+FuncFParams     ::= FuncFParam FuncFParamsList | epsilon;
+FuncFParamsList ::= "," FuncFParam FuncFParamsList | epsilon
+FuncFParam      ::= BType IDENT;
 
 语句：
 Block           ::= "{" BlockItem BlockList "}";
@@ -65,20 +68,28 @@ SimpleStmt      ::= LVal "=" Exp ";"
 
 
 运算：
-Exp             ::= LOrExp;
-LVal            ::= IDENT;
-PrimaryExp      ::= "(" Exp ")" | LVal | Number;
+Exp             ::= LOrExp
+LVal            ::= IDENT
+PrimaryExp      ::= "(" Exp ")" | LVal | Number
 Number          ::= INT_CONST;
 UnaryExp        ::= PrimaryExp
                   | "+" UnaryExp
                   | "-" UnaryExp
-                  | "!" UnaryExp;
-MulExp          ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;
-AddExp          ::= MulExp | AddExp ("+" | "-") MulExp;
-RelExp          ::= AddExp | RelExp ("<" | ">" | "<=" | ">=") AddExp;
-EqExp           ::= RelExp | EqExp ("==" | "!=") RelExp;
-LAndExp         ::= EqExp | LAndExp "&&" EqExp;
-LOrExp          ::= LAndExp | LOrExp "||" LAndExp;
+                  | "!" UnaryExp
+                  | IDENT "(" FuncRParams ")"
+                  | IDENT "(" ")"
+
+
+函数调用：
+FuncRParams     ::= Exp FuncRParamsList;
+FuncRParamsList ::= "," Exp FuncRParamsList | epsilon
+
+MulExp          ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp
+AddExp          ::= MulExp | AddExp ("+" | "-") MulExp
+RelExp          ::= AddExp | RelExp ("<" | ">" | "<=" | ">=") AddExp
+EqExp           ::= RelExp | EqExp ("==" | "!=") RelExp
+LAndExp         ::= EqExp | LAndExp "&&" EqExp
+LOrExp          ::= LAndExp | LOrExp "||" LAndExp
 ConstExp        ::= Exp;
 
 */
@@ -90,26 +101,56 @@ class BaseAST {
   virtual void Dump() = 0;
 };
 
-// CompUnit  ::= FuncDef;
-class CompUnitAST : public BaseAST {
+#pragma region CompRoot
+class CompUnitAST;
+// CompRoot        ::= CompUnitList
+class CompRootAST : public BaseAST {
  public:
-  unique_ptr<BaseAST> func_def;
+  vector<unique_ptr<CompUnitAST>> comp_units;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region CompUnitList
+// CompUnitList    ::= CompUnit CompUnitList | epsilon
+class CompUnitListUnit : public BaseAST {
+ public:
+  vector<CompUnitAST*> comp_units;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+#pragma endregion
+
+#pragma region CompUnit
+
+// CompUnit        ::= FuncDef | Decl;
+class CompUnitAST : public BaseAST {
+ public:
+  enum comp_unit_ty { e_func_def, e_decl } ty;
+  unique_ptr<BaseAST> content;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+#pragma endregion
+
+#pragma region Decl
 // Decl          ::= ConstDecl | VarDecl;
 class DeclAST : public BaseAST {
  public:
-  enum de_t { CONST, VAR };
+  enum de_t { e_const, e_var };
   de_t de;
   unique_ptr<BaseAST> decl;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region ConstDecl
 class ConstDefAST;
 // ConstDecl     ::= "const" BType ConstDef ConstDeclList ";";
 class ConstDeclAST : public BaseAST {
@@ -120,7 +161,9 @@ class ConstDeclAST : public BaseAST {
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region ConstDeclList
 // ConstDeclList  ::= "," ConstDef ConstDeclList | epsilon
 // 不进树
 class ConstDeclListUnit : public BaseAST {
@@ -131,15 +174,19 @@ class ConstDeclListUnit : public BaseAST {
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region BType
 // BType         ::= "int";
 class BTypeAST : public BaseAST {
  public:
-  string btype;
+  enum btype_t { e_int, e_void } ty;
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region ConstDef
 // ConstDef      ::= IDENT "=" ConstInitVal;
 class ConstDefAST : public BaseAST {
  public:
@@ -149,7 +196,9 @@ class ConstDefAST : public BaseAST {
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region ConstInitVal
 // ConstInitVal  ::= ConstExp;
 class ConstInitValAST : public BaseAST {
  public:
@@ -159,7 +208,9 @@ class ConstInitValAST : public BaseAST {
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region VarDecl
 class VarDefAST;
 // VarDecl     ::= BType VarDef VarDeclList ";";
 class VarDeclAST : public BaseAST {
@@ -170,7 +221,9 @@ class VarDeclAST : public BaseAST {
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region VarDeclList
 // VarDeclList  ::= "," VarDef VarDeclList | epsilon
 // 不进树
 class VarDeclListUnit : public BaseAST {
@@ -181,7 +234,9 @@ class VarDeclListUnit : public BaseAST {
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region VarDef
 // VarDef        ::= IDENT | IDENT "=" InitVal;
 class VarDefAST : public BaseAST {
  public:
@@ -192,7 +247,9 @@ class VarDefAST : public BaseAST {
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region InitVal
 // InitVal       ::= Exp;
 class InitValAST : public BaseAST {
  public:
@@ -202,25 +259,58 @@ class InitValAST : public BaseAST {
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
-// FuncDef   ::= FuncType IDENT "(" ")" Block;
+#pragma region FuncDef
+// FuncDef         ::= BType IDENT "(" FuncFParams ")" Block
 class FuncDefAST : public BaseAST {
  public:
   unique_ptr<BaseAST> func_type;
-  string func_name;
+  unique_ptr<BaseAST> params;
   unique_ptr<BaseAST> block;
+  string func_name;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
-// FuncType  ::= "int";
-class FuncTypeAST : public BaseAST {
+#pragma region FuncFParams
+// FuncFParams     ::= FuncFParam FuncFParamsList | epsilon
+class FuncFParamAST;
+class FuncFParamsAST : public BaseAST {
  public:
+  vector<unique_ptr<FuncFParamAST>> params;
+
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region FuncFParamsList
+// FuncFParamsList       ::= "," FuncFParam FuncFParamsList | epsilon
+class FuncFParamsListUnit : public BaseAST {
+ public:
+  vector<FuncFParamAST*> params;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+#pragma endregion
+
+#pragma region FuncFParam
+// FuncFParam      ::= BType IDENT
+class FuncFParamAST : public BaseAST {
+ public:
+  unique_ptr<BaseAST> ty;
+  string param_name;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+#pragma endregion
+
+#pragma region Block
 class BlockItemAST;
 // Block           ::= "{" BlockItem BlockList "}";
 class BlockAST : public BaseAST {
@@ -230,7 +320,9 @@ class BlockAST : public BaseAST {
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region BlockList
 // BlockList  ::= BlockItem BlockList | epsilon
 // 不进树
 class BlockListUnit : public BaseAST {
@@ -241,7 +333,9 @@ class BlockListUnit : public BaseAST {
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region BlockItem
 // BlockItem     ::= Decl | Stmt;
 class BlockItemAST : public BaseAST {
  public:
@@ -252,7 +346,9 @@ class BlockItemAST : public BaseAST {
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region Stmt
 // Stmt            ::= OpenStmt | ClosedStmt
 class StmtAST : public BaseAST {
  public:
@@ -262,7 +358,9 @@ class StmtAST : public BaseAST {
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region OpenStmt
 /*
 OpenStmt        ::= "if" "(" Exp ")" OpenStmt
                   | "if" "(" Exp ")" ClosedStmt
@@ -277,7 +375,9 @@ class OpenStmtAST : public BaseAST {
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region ClosedStmt
 /*
 ClosedStmt      ::= SimpleStmt
                   | "if" "(" Exp ")" ClosedStmt "else" ClosedStmt
@@ -291,7 +391,9 @@ class ClosedStmtAST : public BaseAST {
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region SimpleStmt
 /*
 SimpleStmt      ::= LVal "=" Exp ";"
                   | Exp
@@ -313,7 +415,9 @@ class SimpleStmtAST : public BaseAST {
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region Exp
 // Exp         ::= LOrExp;
 class ExpAST : public BaseAST {
  public:
@@ -323,7 +427,9 @@ class ExpAST : public BaseAST {
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region Lval
 // LVal          ::= IDENT;
 class LValAST : public BaseAST {
  public:
@@ -333,7 +439,9 @@ class LValAST : public BaseAST {
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region PrimaryExp
 // PrimaryExp    ::= "(" Exp ")" | LVal | Number;
 class PrimaryExpAST : public BaseAST {
  public:
@@ -348,7 +456,9 @@ class PrimaryExpAST : public BaseAST {
  private:
   const char* type() const;
 };
+#pragma endregion
 
+#pragma region Number
 // Number      ::= INT_CONST;
 class NumberAST : public BaseAST {
  public:
@@ -357,27 +467,59 @@ class NumberAST : public BaseAST {
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region UnaryExp
 /*
-UnaryExp    ::= PrimaryExp
-              | "+" UnaryExp
-              | "-" UnaryExp
-              | "!" UnaryExp;
+UnaryExp        ::= PrimaryExp
+                  | "+" UnaryExp
+                  | "-" UnaryExp
+                  | "!" UnaryExp
+                  | IDENT "(" FuncRParams ")"
+                  | IDENT "(" ")"
 */
 class UnaryExpAST : public BaseAST {
  public:
-  enum uex_t { Primary, OPUnary };
-  uex_t uex;
-  enum uop_t { Pos, Neg, Not };
-  uop_t uop;
+  enum uex_t { Primary, OPUnary, FuncWithParam, FuncNoParam } uex;
+  enum uop_t { Pos, Neg, Not } uop;
 
   unique_ptr<BaseAST> exp;
+
+  string func_name;
+  unique_ptr<BaseAST> params;
+
   RetInfo thisRet;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
+#pragma region FuncRParams
+// FuncRParams     ::= Exp FuncRParamsList;
+class FuncRParamsAST : public BaseAST {
+ public:
+  vector<unique_ptr<ExpAST>> params;
+  vector<RetInfo> parsed_params;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+  const vector<RetInfo>& GetParams() const;
+};
+#pragma endregion
+
+#pragma region FuncRParamsList
+// FuncRParamsList ::= "," Exp FuncRParamsList | epsilon
+class FuncRParamsListUnit : public BaseAST {
+ public:
+  vector<ExpAST*> params;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+#pragma endregion
+
+#pragma region MulExp
 // MulExp      ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;
 class MulExpAST : public BaseAST {
  public:
@@ -396,7 +538,9 @@ class MulExpAST : public BaseAST {
   const char* op_name() const;
   string type() const;
 };
+#pragma endregion
 
+#pragma region AddExp
 // AddExp      ::= MulExp | AddExp ("+" | "-") MulExp;
 class AddExpAST : public BaseAST {
  public:
@@ -415,7 +559,9 @@ class AddExpAST : public BaseAST {
   const char* op_name() const;
   string type() const;
 };
+#pragma endregion
 
+#pragma region RelExp
 // RelExp      ::= AddExp | RelExp ("<" | ">" | "<=" | ">=") AddExp;
 class RelExpAST : public BaseAST {
  public:
@@ -434,7 +580,9 @@ class RelExpAST : public BaseAST {
   const char* op_name() const;
   string type() const;
 };
+#pragma endregion
 
+#pragma region EqExp
 // EqExp       ::= RelExp | EqExp ("==" | "!=") RelExp;
 class EqExpAST : public BaseAST {
  public:
@@ -453,7 +601,9 @@ class EqExpAST : public BaseAST {
   const char* op_name() const;
   string type() const;
 };
+#pragma endregion
 
+#pragma region LAndExp
 // LAndExp     ::= EqExp | LAndExp "&&" EqExp;
 class LAndExpAST : public BaseAST {
  public:
@@ -469,7 +619,9 @@ class LAndExpAST : public BaseAST {
  private:
   string type() const;
 };
+#pragma endregion
 
+#pragma region LOrExp
 // LOrExp      ::= LAndExp | LOrExp "||" LAndExp;
 class LOrExpAST : public BaseAST {
  public:
@@ -485,7 +637,9 @@ class LOrExpAST : public BaseAST {
  private:
   string type() const;
 };
+#pragma endregion
 
+#pragma region ConstExp
 // ConstExp      ::= Exp;
 class ConstExpAST : public BaseAST {
  public:
@@ -495,6 +649,7 @@ class ConstExpAST : public BaseAST {
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
+#pragma endregion
 
 void make_indent(ostream& os, int indent);
 // ...

@@ -2,18 +2,55 @@
 #include "ir_util.h"
 using namespace ir;
 
+#pragma region CompRootAST
+
+void CompRootAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "CompRootAST {" << endl;
+  for (auto it = comp_units.begin(); it != comp_units.end(); it++) {
+    (*it)->Print(os, indent + 1);
+  }
+  make_indent(os, indent);
+  os << "}," << endl;
+}
+
+void CompRootAST::Dump() {
+  auto& gen = IRGenerator::getInstance();
+  for (auto it = comp_units.begin(); it != comp_units.end(); it++) {
+    (*it)->Dump();
+    gen.funcCore.Reset();
+    gen.branchCore.Reset();
+  }
+}
+
+#pragma endregion
+
+#pragma region CompUnitListUnit
+
+void CompUnitListUnit::Print(ostream& os, int indent) const {
+  cerr << "[SHOULD NOT OUTPUT THIS]" << endl;
+}
+
+void CompUnitListUnit::Dump() {
+  cerr << "[SHOULD NOT OUTPUT THIS]" << endl;
+}
+
+#pragma endregion
+
 #pragma region CompUnitAST
 
 void CompUnitAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "CompUnitAST {" << endl;
-  func_def->Print(os, indent + 1);
+  make_indent(os, indent + 1);
+  os << "type: " << (ty == e_func_def ? "FuncDef" : "Decl") << endl;
+  content->Print(os, indent + 1);
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void CompUnitAST::Dump() {
-  func_def->Dump();
+  content->Dump();
 }
 
 #pragma endregion
@@ -23,14 +60,14 @@ void DeclAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "DeclAST {" << endl;
   make_indent(os, indent + 1);
-  if (de == de_t::CONST) {
+  if (de == de_t::e_const) {
     os << "type: const" << endl;
   } else {
     os << "type: var" << endl;
   }
   decl->Print(os, indent + 1);
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void DeclAST::Dump() {
@@ -49,14 +86,14 @@ void ConstDeclAST::Print(ostream& os, int indent) const {
     (*it)->Print(os, indent + 1);
   }
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void ConstDeclAST::Dump() {
   DeclaimProcessor& processor =
       IRGenerator::getInstance().symbolCore.getDProc();
   processor.Enable();
-  processor.SetSymbolType(SymbolType::CONST);
+  processor.SetSymbolType(SymbolType::e_const);
   btype->Dump();
   for (auto it = const_defs.begin(); it != const_defs.end(); it++) {
     (*it)->Dump();
@@ -69,11 +106,11 @@ void ConstDeclAST::Dump() {
 #pragma region ConstDeclListUnit
 
 void ConstDeclListUnit::Print(ostream& os, int indent) const {
-  cerr << "[SHOULD OUTPUT THIS]" << endl;
+  cerr << "[SHOULD NOT OUTPUT THIS]" << endl;
 }
 
 void ConstDeclListUnit::Dump() {
-  cerr << "[SHOULD OUTPUT THIS]" << endl;
+  cerr << "[SHOULD NOT OUTPUT THIS]" << endl;
 }
 
 #pragma endregion
@@ -82,11 +119,12 @@ void ConstDeclListUnit::Dump() {
 
 void BTypeAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
-  os << "BTypeAST: int" << endl;
+  os << "BTypeAST: " << (ty == e_int ? "int" : "void") << endl;
 }
 
 void BTypeAST::Dump() {
-  IRGenerator::getInstance().symbolCore.dproc.SetVarType(VarType::INT);
+  IRGenerator::getInstance().symbolCore.dproc.SetVarType(
+      (ty == e_int ? VarType::e_int : VarType::e_void));
 }
 
 #pragma endregion
@@ -98,7 +136,7 @@ void ConstDefAST::Print(ostream& os, int indent) const {
   os << "ConstDefAST: { var_name: " << var_name << endl;
   const_init_val->Print(os, indent + 1);
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void ConstDefAST::Dump() {
@@ -123,7 +161,7 @@ void ConstInitValAST::Print(ostream& os, int indent) const {
   os << "ConstInitValAST: {" << endl;
   const_exp->Print(os, indent + 1);
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void ConstInitValAST::Dump() {
@@ -143,14 +181,14 @@ void VarDeclAST::Print(ostream& os, int indent) const {
     (*it)->Print(os, indent + 1);
   }
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void VarDeclAST::Dump() {
   DeclaimProcessor& processor =
       IRGenerator::getInstance().symbolCore.getDProc();
   processor.Enable();
-  processor.SetSymbolType(SymbolType::VAR);
+  processor.SetSymbolType(SymbolType::e_var);
   btype->Dump();
   for (auto it = var_defs.begin(); it != var_defs.end(); it++) {
     (*it)->Dump();
@@ -163,11 +201,11 @@ void VarDeclAST::Dump() {
 #pragma region VarDeclListUnit
 
 void VarDeclListUnit::Print(ostream& os, int indent) const {
-  cerr << "[SHOULD OUTPUT THIS]" << endl;
+  cerr << "[SHOULD NOT OUTPUT THIS]" << endl;
 }
 
 void VarDeclListUnit::Dump() {
-  cerr << "[SHOULD OUTPUT THIS]" << endl;
+  cerr << "[SHOULD NOT OUTPUT THIS]" << endl;
 }
 
 #pragma endregion
@@ -183,7 +221,7 @@ void VarDefAST::Print(ostream& os, int indent) const {
     init_val->Print(os, indent + 1);
   }
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void VarDefAST::Dump() {
@@ -199,7 +237,7 @@ void VarDefAST::Dump() {
     init_val->Dump();
     auto iv = dynamic_cast<InitValAST*>(init_val.get());
     // 赋值，加入符号表
-    SymbolTableEntry s_entry = gen.symbolCore.getEntry(entry.varName);
+    SymbolTableEntry s_entry = gen.symbolCore.getEntry(entry.var_name);
     gen.WriteStoreInst(iv->thisRet, s_entry);
   }
 }
@@ -213,7 +251,7 @@ void InitValAST::Print(ostream& os, int indent) const {
   os << "InitValAST: {" << endl;
   exp->Print(os, indent + 1);
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void InitValAST::Dump() {
@@ -232,21 +270,28 @@ void FuncDefAST::Print(ostream& os, int indent) const {
   func_type->Print(os, indent + 1);
   make_indent(os, indent + 1);
   os << "func name: \"" << func_name << "\"," << endl;
+  params->Print(os, indent + 1);
   block->Print(os, indent + 1);
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void FuncDefAST::Dump() {
   IRGenerator& gen = IRGenerator::getInstance();
+  // 记录函数类型和参数
+  gen.symbolCore.dproc.Enable();
   func_type->Dump();
-  gen.funcName = func_name;
+  gen.funcCore.ret_ty = gen.symbolCore.dproc.getCurVarType();
+  params->Dump();
+  gen.symbolCore.dproc.Disable();
+
+  gen.funcCore.func_name = func_name;
 
   gen.WriteFuncPrologue();
   block->Dump();
-  // 如果函数结束没有return，就补一个return 0;
-  if (!gen.hasRetThisBB) {
-    gen.funcRetInfo = RetInfo(0);
+  // 如果函数结束没有return，就按照函数返回值类型补一个return;
+  if (!gen.branchCore.hasRetThisBB) {
+    gen.funcCore.SetDefaultRetInfo();
     gen.WriteRetInst();
   }
   gen.WriteFuncEpilogue();
@@ -254,15 +299,56 @@ void FuncDefAST::Dump() {
 
 #pragma endregion
 
-#pragma region FuncTypeAST
+#pragma region FuncFParamsAST
 
-void FuncTypeAST::Print(ostream& os, int indent) const {
+void FuncFParamsAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
-  os << "FuncTypeAST: int," << endl;
+  os << "FuncFParamsAST {" << endl;
+  for (auto it = params.begin(); it != params.end(); it++) {
+    (*it)->Print(os, indent + 1);
+  }
+  make_indent(os, indent);
+  os << "}," << endl;
 }
 
-void FuncTypeAST::Dump() {
-  IRGenerator::getInstance().returnType = "i32";
+void FuncFParamsAST::Dump() {
+  auto& gen = IRGenerator::getInstance();
+  for (auto it = params.begin(); it != params.end(); it++) {
+    (*it)->Dump();
+    gen.funcCore.InsertParam(gen.symbolCore.getDProc().getCurVarType(),
+                             (*it)->param_name);
+  }
+}
+
+#pragma endregion
+
+#pragma region FuncFParamsListUnit
+
+void FuncFParamsListUnit::Print(ostream& os, int indent) const {
+  cerr << "[SHOULD NOT OUTPUT THIS]" << endl;
+}
+
+void FuncFParamsListUnit::Dump() {
+  cerr << "[SHOULD NOT OUTPUT THIS]" << endl;
+}
+
+#pragma endregion
+
+#pragma region FuncFParamAST
+
+void FuncFParamAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "FuncFParamAST {" << endl;
+  ty->Print(os, indent + 1);
+  make_indent(os, indent + 1);
+  os << "param name: " << param_name << endl;
+  make_indent(os, indent);
+  os << "}," << endl;
+}
+
+void FuncFParamAST::Dump() {
+  ty->Dump();
+  // 其他什么都不用做，变量类型自动记录，上层获取变量名
 }
 
 #pragma endregion
@@ -276,7 +362,7 @@ void BlockAST::Print(ostream& os, int indent) const {
     (*it)->Print(os, indent + 1);
   }
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void BlockAST::Dump() {
@@ -289,11 +375,11 @@ void BlockAST::Dump() {
 
 #pragma region BlockListUnit
 void BlockListUnit::Print(ostream& os, int indent) const {
-  cerr << "[SHOULD OUTPUT THIS]" << endl;
+  cerr << "[SHOULD NOT OUTPUT THIS]" << endl;
 }
 
 void BlockListUnit::Dump() {
-  cerr << "[SHOULD OUTPUT THIS]" << endl;
+  cerr << "[SHOULD NOT OUTPUT THIS]" << endl;
 }
 
 #pragma endregion
@@ -306,12 +392,12 @@ void BlockItemAST::Print(ostream& os, int indent) const {
   os << "type: " << (bt == blocktype_t::decl ? "decl" : "stmt") << endl;
   content->Print(os, indent + 1);
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void BlockItemAST::Dump() {
   auto& gen = IRGenerator::getInstance();
-  if (!gen.hasRetThisBB) {
+  if (!gen.branchCore.hasRetThisBB) {
     content->Dump();
   }
 }
@@ -327,7 +413,7 @@ void StmtAST::Print(ostream& os, int indent) const {
   os << "type: " << (type == stmty_t::open ? "open" : "closed") << endl;
   stmt->Print(os, indent + 1);
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void StmtAST::Dump() {
@@ -377,7 +463,7 @@ void OpenStmtAST::Print(ostream& os, int indent) const {
       break;
   }
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void OpenStmtAST::Dump() {
@@ -399,7 +485,7 @@ void OpenStmtAST::Dump() {
       } else {
         closed->Dump();
       }
-      if (!gen.hasRetThisBB) {
+      if (!gen.branchCore.hasRetThisBB) {
         gen.WriteJumpInst(ifin.next_label);
       }
       gen.WriteLabel(ifin.next_label);
@@ -411,15 +497,15 @@ void OpenStmtAST::Dump() {
 
       gen.WriteLabel(ifin.then_label);
       closed->Dump();
-      bool retInThen = gen.hasRetThisBB;
+      bool retInThen = gen.branchCore.hasRetThisBB;
       if (!retInThen) {
         gen.WriteJumpInst(ifin.next_label);
       }
 
       gen.WriteLabel(ifin.else_label);
       open->Dump();
-      bool retInElse = gen.hasRetThisBB;
-      if (!gen.hasRetThisBB) {
+      bool retInElse = gen.branchCore.hasRetThisBB;
+      if (!gen.branchCore.hasRetThisBB) {
         gen.WriteJumpInst(ifin.next_label);
       }
 
@@ -443,7 +529,7 @@ void OpenStmtAST::Dump() {
 
       gen.WriteLabel(loopInfo.body_label);
       open->Dump();
-      if (!gen.hasRetThisBB) {
+      if (!gen.branchCore.hasRetThisBB) {
         gen.WriteJumpInst(loopInfo.cond_label);
       }
 
@@ -486,7 +572,7 @@ void ClosedStmtAST::Print(ostream& os, int indent) const {
       break;
   }
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void ClosedStmtAST::Dump() {
@@ -506,15 +592,15 @@ void ClosedStmtAST::Dump() {
 
       gen.WriteLabel(ifin.then_label);
       tclosed->Dump();
-      bool retInThen = gen.hasRetThisBB;
+      bool retInThen = gen.branchCore.hasRetThisBB;
       if (!retInThen) {
         gen.WriteJumpInst(ifin.next_label);
       }
 
       gen.WriteLabel(ifin.else_label);
       fclosed->Dump();
-      bool retInElse = gen.hasRetThisBB;
-      if (!gen.hasRetThisBB) {
+      bool retInElse = gen.branchCore.hasRetThisBB;
+      if (!gen.branchCore.hasRetThisBB) {
         gen.WriteJumpInst(ifin.next_label);
       }
 
@@ -538,7 +624,7 @@ void ClosedStmtAST::Dump() {
 
       gen.WriteLabel(loopInfo.body_label);
       tclosed->Dump();
-      if (!gen.hasRetThisBB) {
+      if (!gen.branchCore.hasRetThisBB) {
         gen.WriteJumpInst(loopInfo.cond_label);
       }
 
@@ -590,7 +676,7 @@ void SimpleStmtAST::Print(ostream& os, int indent) const {
       break;
   }
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void SimpleStmtAST::Dump() {
@@ -616,7 +702,7 @@ void SimpleStmtAST::Dump() {
       exp->Dump();
       auto ee = dynamic_cast<ExpAST*>(exp.get());
       // 设置返回值
-      gen.funcRetInfo = ee->thisRet;
+      gen.funcCore.ret_info = ee->thisRet;
       gen.WriteRetInst();
     } break;
 
@@ -634,7 +720,7 @@ void SimpleStmtAST::Dump() {
     } break;
 
     case sstmt_t::nullret: {
-      gen.funcRetInfo = RetInfo();
+      gen.funcCore.ret_info = RetInfo();
       gen.WriteRetInst();
     } break;
 
@@ -670,7 +756,7 @@ void ExpAST::Print(ostream& os, int indent) const {
   os << "ExpAST {" << endl;
   loexp->Print(os, indent + 1);
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void ExpAST::Dump() {
@@ -684,7 +770,7 @@ void ExpAST::Dump() {
 #pragma region LValAST
 void LValAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
-  os << "LValAST { var name: \"" << var_name << "\" }," << endl;
+  os << "LValAST { var name: \"" << var_name << "\"}," << endl;
 }
 
 void LValAST::Dump() {
@@ -692,17 +778,17 @@ void LValAST::Dump() {
   // 判断变量类型
   SymbolTableEntry entry = gen.symbolCore.getEntry(var_name);
 
-  if (entry.symbolType == SymbolType::CONST) {
+  if (entry.symbol_type == SymbolType::e_const) {
     // const只会是右值
-    if (entry.varType == VarType::INT) {
+    if (entry.var_type == VarType::e_int) {
       // const int
-      thisRet = RetInfo(entry.value);
+      thisRet = RetInfo(entry.const_value);
     } else {
       // const arr
       assert(false);
     }
   } else {
-    if (entry.varType == VarType::INT) {
+    if (entry.var_type == VarType::e_int) {
       // var int
       // 判断是左值还是右值
       if (gen.symbolCore.aproc.IsEnabled()) {
@@ -732,7 +818,7 @@ void PrimaryExpAST::Print(ostream& os, int indent) const {
   os << "type: " << type() << endl;
   content->Print(os, indent + 1);
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void PrimaryExpAST::Dump() {
@@ -777,7 +863,7 @@ const char* PrimaryExpAST::type() const {
 
 void NumberAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
-  os << "NumberAST { int_const: " << int_const << " }," << endl;
+  os << "NumberAST { int_const: " << int_const << "}," << endl;
 }
 
 void NumberAST::Dump() {
@@ -797,28 +883,38 @@ void UnaryExpAST::Print(ostream& os, int indent) const {
   if (uex == uex_t::Primary) {
     os << "Primary" << endl;
     exp->Print(os, indent + 1);
-  } else {
+  } else if (uex == uex_t::OPUnary) {
     os << "UnaryOp UnaryExp" << endl;
     make_indent(os, indent + 1);
     os << "op: " << (uop == uop_t::Pos ? '+' : (uop == uop_t::Neg ? '-' : '!'))
        << endl;
     exp->Print(os, indent + 1);
+  } else if (uex == uex_t::FuncWithParam) {
+    os << "Func" << endl;
+    make_indent(os, indent + 1);
+    os << "Func name: " << func_name << endl;
+    params->Print(os, indent + 1);
+  } else if (uex == uex_t::FuncNoParam) {
+    os << "Func" << endl;
+    make_indent(os, indent + 1);
+    os << "Func name: " << func_name << endl;
   }
 
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void UnaryExpAST::Dump() {
-  exp->Dump();
   IRGenerator& gen = IRGenerator::getInstance();
 
   switch (uex) {
-    case Primary: {
+    case uex_t::Primary: {
+      exp->Dump();
       auto pr = dynamic_cast<PrimaryExpAST*>(exp.get());
       thisRet = pr->thisRet;
     } break;
-    case OPUnary: {
+    case uex_t::OPUnary: {
+      exp->Dump();
       auto ex = dynamic_cast<UnaryExpAST*>(exp.get());
       switch (uop) {
         case uop_t::Pos:
@@ -832,9 +928,54 @@ void UnaryExpAST::Dump() {
           break;
       }
     } break;
+    case uex_t::FuncWithParam: {
+      params->Dump();
+      auto ptr = dynamic_cast<FuncRParamsAST*>(params.get());
+      thisRet = gen.WriteCallInst(func_name, ptr->GetParams());
+    } break;
+    case uex_t::FuncNoParam:
     default:
+      thisRet = gen.WriteCallInst(func_name, vector<RetInfo>());
       break;
+      ;
   }
+}
+
+#pragma endregion
+
+#pragma region FuncRParamsAST
+
+void FuncRParamsAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "FuncRParamsAST {" << endl;
+  for (auto it = params.begin(); it != params.end(); it++) {
+    (*it)->Print(os, indent + 1);
+  }
+  make_indent(os, indent);
+  os << "}," << endl;
+}
+
+void FuncRParamsAST::Dump() {
+  for (auto it = params.begin(); it != params.end(); it++) {
+    (*it)->Dump();
+    parsed_params.push_back((*it)->thisRet);
+  }
+}
+
+const vector<RetInfo>& FuncRParamsAST::GetParams() const {
+  return parsed_params;
+}
+
+#pragma endregion
+
+#pragma region FuncRParamsListUnit
+
+void FuncRParamsListUnit::Print(ostream& os, int indent) const {
+  cerr << "[SHOULD NOT OUTPUT THIS]" << endl;
+}
+
+void FuncRParamsListUnit::Dump() {
+  cerr << "[SHOULD NOT OUTPUT THIS]" << endl;
 }
 
 #pragma endregion
@@ -858,7 +999,7 @@ void MulExpAST::Print(ostream& os, int indent) const {
   }
 
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void MulExpAST::Dump() {
@@ -933,7 +1074,7 @@ void AddExpAST::Print(ostream& os, int indent) const {
   }
 
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void AddExpAST::Dump() {
@@ -1000,7 +1141,7 @@ void RelExpAST::Print(ostream& os, int indent) const {
   }
 
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void RelExpAST::Dump() {
@@ -1081,7 +1222,7 @@ void EqExpAST::Print(ostream& os, int indent) const {
   }
 
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void EqExpAST::Dump() {
@@ -1149,7 +1290,7 @@ void LAndExpAST::Print(ostream& os, int indent) const {
   }
 
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void LAndExpAST::Dump() {
@@ -1159,7 +1300,7 @@ void LAndExpAST::Dump() {
     auto la = dynamic_cast<LAndExpAST*>(laexp.get());
     auto eq = dynamic_cast<EqExpAST*>(eexp.get());
 
-    if (pcs.IsEnabled() && pcs.getCurSymType() == SymbolType::CONST) {
+    if (pcs.IsEnabled() && pcs.getCurSymType() == SymbolType::e_const) {
       laexp->Dump();
       eexp->Dump();
       thisRet = IRGenerator::getInstance().WriteLogicInst(
@@ -1176,7 +1317,7 @@ void LAndExpAST::Dump() {
 
     // int result = lhs != 0;
     laexp->Dump();
-    auto entry = pcs.QuickGenEntry(SymbolType::VAR, VarType::INT,
+    auto entry = pcs.QuickGenEntry(SymbolType::e_var, VarType::e_int,
                                    gen.registerShortCircuitVar());
     gen.WriteAllocInst(entry);
     RetInfo lhsNeZero =
@@ -1238,7 +1379,7 @@ void LOrExpAST::Print(ostream& os, int indent) const {
   }
 
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void LOrExpAST::Dump() {
@@ -1248,7 +1389,7 @@ void LOrExpAST::Dump() {
     auto la = dynamic_cast<LAndExpAST*>(laexp.get());
     auto lo = dynamic_cast<LOrExpAST*>(loexp.get());
 
-    if (pcs.IsEnabled() && pcs.getCurSymType() == SymbolType::CONST) {
+    if (pcs.IsEnabled() && pcs.getCurSymType() == SymbolType::e_const) {
       loexp->Dump();
       laexp->Dump();
       thisRet = gen.WriteLogicInst(la->thisRet, lo->thisRet, OpID::LG_OR);
@@ -1264,7 +1405,7 @@ void LOrExpAST::Dump() {
 
     // int result = lhs;
     loexp->Dump();
-    auto entry = pcs.QuickGenEntry(SymbolType::VAR, VarType::INT,
+    auto entry = pcs.QuickGenEntry(SymbolType::e_var, VarType::e_int,
                                    gen.registerShortCircuitVar());
     gen.WriteAllocInst(entry);
     RetInfo lhsNeZero =
@@ -1315,14 +1456,14 @@ void ConstExpAST::Print(ostream& os, int indent) const {
   os << "ConstExpAST: {" << endl;
   exp->Print(os, indent + 1);
   make_indent(os, indent);
-  os << " }," << endl;
+  os << "}," << endl;
 }
 
 void ConstExpAST::Dump() {
   exp->Dump();
   auto ptr = dynamic_cast<ExpAST*>(exp.get());
   thisRet = ptr->thisRet;
-  // assert(thisRet.ty == RetInfo::ty_int);
+  assert(thisRet.ty == RetInfo::ty_int);
 }
 
 #pragma endregion

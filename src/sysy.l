@@ -35,6 +35,7 @@ Hexadecimal       0[xX][0-9a-fA-F]+
 {LineComment}       { /* 忽略, 不做任何操作 */ }
 {MultilineComment}  { /* 忽略, 不做任何操作 */ }
 
+"void"              { return VOID; }
 "int"               { return INT; }
 "return"            { return RETURN; }
 "const"             { return CONST; }
