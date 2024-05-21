@@ -60,7 +60,12 @@ class StackMemoryModule {
 
   void SetStackMem(const int& mem);
 
-  void WriteStoreInst(const InstResultInfo& src, const InstResultInfo& dest);
+  // 用于数据转移，需要在外部管理寄存器
+  // 支持：
+  // imm -> reg, imm -> stack
+  // reg -> stack, stack1 -> stack2
+  // stack -> reg
+  void WriteDataTranfer(const InstResultInfo& src, const InstResultInfo& dest);
 
   void WriteLI(const Reg& rs, int imm);
   // 从addr地址读出存入rd，不用imm12
@@ -126,7 +131,7 @@ class GlobalVarModule {
   // 从全局变量load，返回最终存储这个load指令结果的地址
   const int WriteLoadGlobalVar(const string& name);
   // 存储到全局变量，返回全局变量的地址，info只支持int和reg
-  void WriteStoreGlobalVar(const string& name, const InstResultInfo& info);
+  void WriteStoreGlobalVar(const string& name, const InstResultInfo& src_info);
 };
 
 class RiscvGenerator {

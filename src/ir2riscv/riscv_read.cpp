@@ -230,7 +230,7 @@ void visit_inst_store(const koopa_raw_value_t& inst) {
   }
 
   // 复杂
-  stack_core.WriteStoreInst(src, dest);
+  stack_core.WriteDataTranfer(src, dest);
 
   // 如果源是寄存器，此处目标只会是栈，将源释放
   if (src.ty == ValueType::e_reg) {
@@ -250,7 +250,7 @@ void visit_inst_binary(const koopa_raw_value_t& inst) {
   InstResultInfo dest(ValueType::e_stack, stack_core.IncreaseStackUsed()),
       src(r1);
   // 走reg -> stack
-  stack_core.WriteStoreInst(src, dest);
+  stack_core.WriteDataTranfer(src, dest);
 
   gen.regCore.ReleaseReg(r1);
   gen.regCore.ReleaseReg(r2);
@@ -306,7 +306,7 @@ void visit_inst_call(const koopa_raw_value_t& inst) {
       reg_used.insert(dest.content.reg);
     }
     // imm -> reg 或 stack -> reg
-    stack_core.WriteStoreInst(src, dest);
+    stack_core.WriteDataTranfer(src, dest);
   }
   gen.funcCore.WriteCallInst(ParseSymbol(inst_call.callee->name));
   for (auto r : reg_used) {
@@ -323,7 +323,7 @@ void visit_inst_call(const koopa_raw_value_t& inst) {
       dest(ValueType::e_stack, stack_core.IncreaseStackUsed());
 
   // reg -> stack
-  stack_core.WriteStoreInst(src, dest);
+  stack_core.WriteDataTranfer(src, dest);
   gen.regCore.ReleaseReg(Reg::a0);
   stack_core.InstResult.emplace(inst, dest);
 }

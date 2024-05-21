@@ -77,8 +77,8 @@ void StackMemoryModule::SetStackMem(const int& mem) {
   stack_used = 0;
 }
 
-void StackMemoryModule::WriteStoreInst(const InstResultInfo& src,
-                                       const InstResultInfo& dest) {
+void StackMemoryModule::WriteDataTranfer(const InstResultInfo& src,
+                                         const InstResultInfo& dest) {
   auto& gen = RiscvGenerator::getInstance();
   ostream& os = gen.setting.getOs();
   switch (src.ty) {
@@ -323,7 +323,10 @@ const int GlobalVarModule::WriteLoadGlobalVar(const string& name) {
   lw(os, tmp, tmp, 0);
 
   int addr = gen.stackCore.IncreaseStackUsed();
-  gen.stackCore.WriteSW(tmp, addr);
+  InstResultInfo src(tmp);
+  InstResultInfo dest(ValueType::e_stack, addr);
+  // reg -> stack
+  gen.stackCore.WriteDataTranfer(src, dest);
 
   // 释放寄存器
   gen.regCore.ReleaseReg(tmp);
@@ -331,19 +334,18 @@ const int GlobalVarModule::WriteLoadGlobalVar(const string& name) {
 }
 
 void GlobalVarModule::WriteStoreGlobalVar(const string& name,
-                                          const InstResultInfo& info) {
+                                          const InstResultInfo& src_info) {
   auto& gen = RiscvGenerator::getInstance();
   auto& os = gen.setting.getOs();
   Reg addr = gen.regCore.GetAvailableReg();
   la(os, addr, name);
 
   Reg src = gen.regCore.GetAvailableReg();
-  if (info.ty == ValueType::e_imm) {
-    li(os, src, info.content.imm);
-  } else if (info.ty == ValueType::e_reg) {
-    src = info.content.reg;
-  } else if (info.ty == ValueType::e_stack) {
-    gen.stackCore.WriteLW(src, info.content.addr);
+  if (src_info.ty == ValueType::e_reg) {
+    src = src_info.content.reg;
+  } else {
+    // stack -> reg, imm -> reg
+    gen.stackCore.WriteDataTranfer(src_info, InstResultInfo(src));
   }
   sw(os, addr, src, 0);
   gen.regCore.ReleaseReg(src);
