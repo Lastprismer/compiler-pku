@@ -84,11 +84,12 @@ void StackMemoryModule::WriteStoreInst(const InstResultInfo& src,
   switch (src.ty) {
     case ValueType::e_imm:
       if (dest.ty == ValueType::e_reg) {
-        // store imm to reg
+        // imm -> reg
         // 现在不会用到，之后优化寄存器策略时可能用？
         li(os, dest.content.reg, src.content.imm);
       } else if (dest.ty == ValueType::e_stack) {
-        // store imm to stack
+        // imm -> stack
+        // imm -> reg, reg -> stack
         Reg rd = gen.regCore.GetAvailableReg();
         li(os, rd, src.content.imm);
         WriteSW(rd, dest.content.addr);
@@ -97,21 +98,24 @@ void StackMemoryModule::WriteStoreInst(const InstResultInfo& src,
       break;
     case ValueType::e_reg:
       if (dest.ty == ValueType::e_reg) {
-        // store reg to reg
+        // reg1 -> reg2
         // 啥也不用做，最后会改表
+        assert(false);
       } else if (dest.ty == ValueType::e_stack) {
-        // store reg to stack
+        // reg -> stack
         WriteSW(src.content.reg, dest.content.addr);
-        gen.regCore.ReleaseReg(src.content.reg);
       }
       break;
     case ValueType::e_stack: {
       if (dest.ty == ValueType::e_stack) {
+        // stack1 -> stack2
+        // stack1 -> reg, reg -> stack2
         Reg rs = gen.regCore.GetAvailableReg();
         WriteLW(rs, src.content.addr);
         WriteSW(rs, dest.content.addr);
         gen.regCore.ReleaseReg(rs);
       } else if (dest.ty == ValueType::e_reg) {
+        // stack -> reg
         WriteLW(dest.content.reg, src.content.addr);
       }
     }
@@ -311,13 +315,19 @@ void GlobalVarModule::WriteGlobalVarDecl(const string& name,
   }
 }
 
-const Reg GlobalVarModule::WriteLoadGlobalVar(const string& name) {
+const int GlobalVarModule::WriteLoadGlobalVar(const string& name) {
   auto& gen = RiscvGenerator::getInstance();
   auto& os = gen.setting.getOs();
   Reg tmp = gen.regCore.GetAvailableReg();
   la(os, tmp, name);
   lw(os, tmp, tmp, 0);
-  return tmp;
+
+  int addr = gen.stackCore.IncreaseStackUsed();
+  gen.stackCore.WriteSW(tmp, addr);
+
+  // 释放寄存器
+  gen.regCore.ReleaseReg(tmp);
+  return addr;
 }
 
 void GlobalVarModule::WriteStoreGlobalVar(const string& name,
@@ -337,6 +347,7 @@ void GlobalVarModule::WriteStoreGlobalVar(const string& name,
   }
   sw(os, addr, src, 0);
   gen.regCore.ReleaseReg(src);
+  gen.regCore.ReleaseReg(addr);
   return;
 }
 

@@ -163,13 +163,11 @@ void visit_inst_load(const koopa_raw_value_t& inst) {
 
   if (inst->kind.data.load.src->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
     // 加载全局变量
-    Reg reg = gen.globalCore.WriteLoadGlobalVar(
+    int addr = gen.globalCore.WriteLoadGlobalVar(
         ParseSymbol(inst->kind.data.load.src->name));
-    InstResultInfo src(reg),
-        dest(ValueType::e_stack, gen.stackCore.IncreaseStackUsed());
-    // reg在函数内释放
-    gen.stackCore.WriteStoreInst(src, dest);
-    stack_core.InstResult[inst] = dest;
+    // 存储其位置
+    stack_core.InstResult.emplace(inst,
+                                  InstResultInfo(ValueType::e_stack, addr));
     return;
   }
 
@@ -205,13 +203,13 @@ void visit_inst_store(const koopa_raw_value_t& inst) {
     }
 
   } else {
-    // src不应该是stack
     auto srcResult = stack_core.InstResult.at(inst_store.value);
     src.ty = srcResult.ty;
-    if (src.ty == ValueType::e_reg)
+    if (src.ty == ValueType::e_reg) {
       src.content.reg = srcResult.content.reg;
-    else
+    } else {
       src.content.addr = srcResult.content.addr;
+    }
   }
 
   // 选择目标
@@ -231,7 +229,13 @@ void visit_inst_store(const koopa_raw_value_t& inst) {
     stack_core.InstResult[inst_store.dest] = dest;
   }
 
+  // 复杂
   stack_core.WriteStoreInst(src, dest);
+
+  // 如果源是寄存器，此处目标只会是栈，将源释放
+  if (src.ty == ValueType::e_reg) {
+    gen.regCore.ReleaseReg(src.content.reg);
+  }
 }
 
 void visit_inst_binary(const koopa_raw_value_t& inst) {
@@ -245,13 +249,11 @@ void visit_inst_binary(const koopa_raw_value_t& inst) {
   // 把r1的内容存回内存，返回地址?
   InstResultInfo dest(ValueType::e_stack, stack_core.IncreaseStackUsed()),
       src(r1);
+  // 走reg -> stack
   stack_core.WriteStoreInst(src, dest);
-  if (stack_core.InstResult.find(inst_bina.rhs) !=
-          stack_core.InstResult.end() ||
-      inst_bina.rhs->kind.tag == KOOPA_RVT_INTEGER) {  // 保存过或是立即数
-    // r2是临时分配的
-    gen.regCore.ReleaseReg(r2);
-  }
+
+  gen.regCore.ReleaseReg(r1);
+  gen.regCore.ReleaseReg(r2);
   stack_core.InstResult.emplace(inst, dest);
 }
 
@@ -303,6 +305,7 @@ void visit_inst_call(const koopa_raw_value_t& inst) {
       gen.regCore.GetReg(dest.content.reg);
       reg_used.insert(dest.content.reg);
     }
+    // imm -> reg 或 stack -> reg
     stack_core.WriteStoreInst(src, dest);
   }
   gen.funcCore.WriteCallInst(ParseSymbol(inst_call.callee->name));
@@ -318,6 +321,8 @@ void visit_inst_call(const koopa_raw_value_t& inst) {
   gen.regCore.GetReg(Reg::a0);
   InstResultInfo src(Reg::a0),
       dest(ValueType::e_stack, stack_core.IncreaseStackUsed());
+
+  // reg -> stack
   stack_core.WriteStoreInst(src, dest);
   gen.regCore.ReleaseReg(Reg::a0);
   stack_core.InstResult.emplace(inst, dest);

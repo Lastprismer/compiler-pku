@@ -123,8 +123,8 @@ class GlobalVarModule {
   GlobalVarModule();
   // 生成全局变量声明
   void WriteGlobalVarDecl(const string& name, const InitInfo& init);
-  // 从全局变量load，返回加载到的reg
-  const Reg WriteLoadGlobalVar(const string& name);
+  // 从全局变量load，返回最终存储这个load指令结果的地址
+  const int WriteLoadGlobalVar(const string& name);
   // 存储到全局变量，返回全局变量的地址，info只支持int和reg
   void WriteStoreGlobalVar(const string& name, const InstResultInfo& info);
 };
