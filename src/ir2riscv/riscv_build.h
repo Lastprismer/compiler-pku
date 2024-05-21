@@ -104,6 +104,10 @@ void beqz(ostream& os, const Reg& reg, const string& label);
 // 行为：调用函数，从一系列寄存器中取出变量，返回值存入ra
 void call(ostream& os, const string& name);
 
+// 语法：la {reg}, {name}
+// 行为：将符号对应地址加载到reg
+void la(ostream& os, const Reg& reg, const string& name);
+
 /* --- 辅助函数 ---*/
 
 const char* regstr(Reg reg);

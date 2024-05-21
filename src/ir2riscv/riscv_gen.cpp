@@ -79,7 +79,7 @@ void StackMemoryModule::SetStackMem(const int& mem) {
 
 void StackMemoryModule::WriteStoreInst(const InstResultInfo& src,
                                        const InstResultInfo& dest) {
-  RiscvGenerator& gen = RiscvGenerator::getInstance();
+  auto& gen = RiscvGenerator::getInstance();
   ostream& os = gen.setting.getOs();
   switch (src.ty) {
     case ValueType::e_imm:
@@ -292,9 +292,60 @@ void FuncModule::Clear() {
 
 #pragma endregion
 
+#pragma region globalvar
+
+GlobalVarModule::GlobalVarModule() {}
+
+void GlobalVarModule::WriteGlobalVarDecl(const string& name,
+                                         const InitInfo& init) {
+  auto& gen = RiscvGenerator::getInstance();
+  auto& os = gen.setting.getOs();
+
+  os << "\n  .data\n  .globl " << name << "\n" << name << ": \n";
+  switch (init.ty) {
+    case InitType::e_zeroinit:
+      os << "  .zero 4" << endl;
+      break;
+    case InitType::e_int:
+      os << "  .word " << init.value << endl;
+  }
+}
+
+const Reg GlobalVarModule::WriteLoadGlobalVar(const string& name) {
+  auto& gen = RiscvGenerator::getInstance();
+  auto& os = gen.setting.getOs();
+  Reg tmp = gen.regCore.GetAvailableReg();
+  la(os, tmp, name);
+  lw(os, tmp, tmp, 0);
+  return tmp;
+}
+
+void GlobalVarModule::WriteStoreGlobalVar(const string& name,
+                                          const InstResultInfo& info) {
+  auto& gen = RiscvGenerator::getInstance();
+  auto& os = gen.setting.getOs();
+  Reg addr = gen.regCore.GetAvailableReg();
+  la(os, addr, name);
+
+  Reg src = gen.regCore.GetAvailableReg();
+  if (info.ty == ValueType::e_imm) {
+    li(os, src, info.content.imm);
+  } else if (info.ty == ValueType::e_reg) {
+    src = info.content.reg;
+  } else if (info.ty == ValueType::e_stack) {
+    gen.stackCore.WriteLW(src, info.content.addr);
+  }
+  sw(os, addr, src, 0);
+  gen.regCore.ReleaseReg(src);
+  return;
+}
+
+#pragma endregion
+
 #pragma region RiscvGen
 
-RiscvGenerator::RiscvGenerator() : regCore(), stackCore(), bbCore() {
+RiscvGenerator::RiscvGenerator()
+    : regCore(), stackCore(), bbCore(), globalCore() {
   setting.setOs(cout).setIndent(0);
 }
 

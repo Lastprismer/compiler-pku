@@ -7,7 +7,7 @@ void visit_program(const koopa_raw_program_t& program) {
   // ...
   // 访问所有全局变量
   visit_slice(program.values);
-  // 访问所有函数=
+  // 访问所有函数
   visit_slice(program.funcs);
 }
 
@@ -42,7 +42,7 @@ void visit_func(const koopa_raw_function_t& func) {
     return;
   }
   // 访问所有基本块
-  RiscvGenerator& gen = RiscvGenerator::getInstance();
+  auto& gen = RiscvGenerator::getInstance();
 
   gen.Clear();
 
@@ -66,45 +66,66 @@ void visit_basic_block(const koopa_raw_basic_block_t& bb) {
 void visit_value(const koopa_raw_value_t& value) {
   //  根据指令类型判断后续需要如何访问
   const auto& kind = value->kind;
-  cout << GetTypeString(value) << ' ';
-  cout << kind.tag;
+  // cout << GetTypeString(value) << ' ';
+  // cout << kind.tag << endl;
   switch (kind.tag) {
     case KOOPA_RVT_INTEGER:
-      cout << "  int" << endl;
+      // cout << "  int" << endl;
       // visit_inst_int(kind.data.integer);
       break;
+
+    case KOOPA_RVT_UNDEF:
+      cout << "what?" << endl;
+      break;
+
+    case KOOPA_RVT_AGGREGATE:
+      cout << "what?" << endl;
+      break;
+
     case KOOPA_RVT_ALLOC:
-      cout << "  alloc" << endl;
+      // cout << "  alloc" << endl;
       // visit_inst_alloc(value);
       break;
+
+    case KOOPA_RVT_GLOBAL_ALLOC:
+      visit_inst_globalalloc(value);
+      break;
+
     case KOOPA_RVT_LOAD:
-      cout << "  load" << endl;
+      // cout << "  load" << endl;
       visit_inst_load(value);
       break;
+
     case KOOPA_RVT_STORE:
-      cout << "  store" << endl;
+      // cout << "  store" << endl;
       visit_inst_store(value);
       break;
+
     case KOOPA_RVT_BINARY:
-      cout << "  binary" << endl;
+      // cout << "  binary" << endl;
       visit_inst_binary(value);
       break;
+
     case KOOPA_RVT_BRANCH:
-      cout << "  branch" << endl;
+      // cout << "  branch" << endl;
       visit_inst_branch(value);
       break;
+
     case KOOPA_RVT_JUMP:
-      cout << "  jump" << endl;
+      // cout << "  jump" << endl;
       visit_inst_jump(value);
       break;
+
     case KOOPA_RVT_CALL:
-      cout << "  call" << endl;
+      // cout << "  call" << endl;
       visit_inst_call(value);
       break;
+
     case KOOPA_RVT_RETURN:
-      cout << "  ret" << endl;
+      // cout << "  ret" << endl;
       visit_inst_ret(kind.data.ret);
       break;
+
     default:
       cout << "  what?" << endl;
       break;
@@ -122,13 +143,40 @@ void visit_inst_alloc(const koopa_raw_value_t& value) {
   cerr << "NOT EXPECTED" << endl;
 }
 
-void visit_inst_load(const koopa_raw_value_t& inst_load) {
-  RiscvGenerator& gen = RiscvGenerator::getInstance();
-  StackMemoryModule& stack_core = gen.stackCore;
-  if (stack_core.InstResult.find(inst_load->kind.data.load.src) !=
-      stack_core.InstResult.end()) {
-    stack_core.InstResult[inst_load] =
-        stack_core.InstResult[inst_load->kind.data.load.src];
+void visit_inst_globalalloc(const koopa_raw_value_t& inst) {
+  auto& gen = RiscvGenerator::getInstance();
+  // 保存相关信息，声明全局变量
+  InitInfo info;
+  const auto& inst_init = inst->kind.data.global_alloc.init;
+  if (inst_init->kind.tag == KOOPA_RVT_INTEGER) {
+    info.ty = InitType::e_int;
+    info.value = inst_init->kind.data.integer.value;
+  } else if (inst_init->kind.tag == KOOPA_RVT_ZERO_INIT) {
+    info.ty = InitType::e_zeroinit;
+  }
+  gen.globalCore.WriteGlobalVarDecl(ParseSymbol(inst->name), info);
+}
+
+void visit_inst_load(const koopa_raw_value_t& inst) {
+  auto& gen = RiscvGenerator::getInstance();
+  auto& stack_core = gen.stackCore;
+
+  if (inst->kind.data.load.src->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
+    // 加载全局变量
+    Reg reg = gen.globalCore.WriteLoadGlobalVar(
+        ParseSymbol(inst->kind.data.load.src->name));
+    InstResultInfo src(reg),
+        dest(ValueType::e_stack, gen.stackCore.IncreaseStackUsed());
+    // reg在函数内释放
+    gen.stackCore.WriteStoreInst(src, dest);
+    stack_core.InstResult[inst] = dest;
+    return;
+  }
+
+  else if (stack_core.InstResult.find(inst->kind.data.load.src) !=
+           stack_core.InstResult.end()) {
+    stack_core.InstResult[inst] =
+        stack_core.InstResult[inst->kind.data.load.src];
     return;
   }
   assert(false);
@@ -139,17 +187,9 @@ void visit_inst_store(const koopa_raw_value_t& inst) {
   auto& gen = RiscvGenerator::getInstance();
   auto& stack_core = gen.stackCore;
 
-  InstResultInfo dest, src;
-  if (stack_core.InstResult.find(inst_store.dest) !=
-      stack_core.InstResult.end()) {
-    dest = stack_core.InstResult.at(inst_store.dest);
-  } else {
-    // 存进栈里
-    dest.ty = ValueType::e_stack;
-    dest.content.addr = stack_core.IncreaseStackUsed();
-    stack_core.InstResult[inst_store.dest] = dest;
-  }
+  InstResultInfo src, dest;
 
+  // 选择源
   if (inst_store.value->kind.tag == KOOPA_RVT_INTEGER) {
     // 加载立即数
     src.ty = ValueType::e_imm;
@@ -174,12 +214,29 @@ void visit_inst_store(const koopa_raw_value_t& inst) {
       src.content.addr = srcResult.content.addr;
   }
 
+  // 选择目标
+  if (inst_store.dest->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
+    // 存储进全局变量
+    // 截胡
+    gen.globalCore.WriteStoreGlobalVar(ParseSymbol(inst_store.dest->name), src);
+    return;
+
+  } else if (stack_core.InstResult.find(inst_store.dest) !=
+             stack_core.InstResult.end()) {
+    dest = stack_core.InstResult.at(inst_store.dest);
+  } else {
+    // 存进栈里
+    dest.ty = ValueType::e_stack;
+    dest.content.addr = stack_core.IncreaseStackUsed();
+    stack_core.InstResult[inst_store.dest] = dest;
+  }
+
   stack_core.WriteStoreInst(src, dest);
 }
 
 void visit_inst_binary(const koopa_raw_value_t& inst) {
   const koopa_raw_binary_t& inst_bina = inst->kind.data.binary;
-  RiscvGenerator& gen = RiscvGenerator::getInstance();
+  auto& gen = RiscvGenerator::getInstance();
   auto& stack_core = gen.stackCore;
   Reg r1 = GetValueResult(inst_bina.lhs);
   Reg r2 = GetValueResult(inst_bina.rhs);
@@ -267,7 +324,7 @@ void visit_inst_call(const koopa_raw_value_t& inst) {
 }
 
 void visit_inst_ret(const koopa_raw_return_t& inst_ret) {
-  RiscvGenerator& gen = RiscvGenerator::getInstance();
+  auto& gen = RiscvGenerator::getInstance();
   auto& instResult = gen.stackCore.InstResult;
   InstResultInfo info;
 
@@ -340,7 +397,7 @@ void CalcMemoryNeeded(const koopa_raw_function_t& func) {
 }
 
 const Reg GetValueResult(const koopa_raw_value_t& value) {
-  RiscvGenerator& gen = RiscvGenerator::getInstance();
+  auto& gen = RiscvGenerator::getInstance();
   auto& stack_core = gen.stackCore;
   if (value->kind.tag == KOOPA_RVT_INTEGER) {
     // 处理常数

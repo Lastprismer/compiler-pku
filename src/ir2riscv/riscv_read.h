@@ -36,6 +36,9 @@ void visit_inst_int(const koopa_raw_integer_t& inst_int);
 // 访问alloc
 void visit_inst_alloc(const koopa_raw_value_t& value);
 
+// 访问global alloc
+void visit_inst_globalalloc(const koopa_raw_value_t& value);
+
 // 访问load
 void visit_inst_load(const koopa_raw_value_t& inst_load);
 

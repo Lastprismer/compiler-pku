@@ -111,6 +111,24 @@ class FuncModule {
   void Clear();
 };
 
+enum class InitType { e_zeroinit, e_int };
+
+struct InitInfo {
+  InitType ty;
+  int value;
+};
+
+class GlobalVarModule {
+ public:
+  GlobalVarModule();
+  // 生成全局变量声明
+  void WriteGlobalVarDecl(const string& name, const InitInfo& init);
+  // 从全局变量load，返回加载到的reg
+  const Reg WriteLoadGlobalVar(const string& name);
+  // 存储到全局变量，返回全局变量的地址，info只支持int和reg
+  void WriteStoreGlobalVar(const string& name, const InstResultInfo& info);
+};
+
 class RiscvGenerator {
  private:
   RiscvGenerator();
@@ -124,6 +142,7 @@ class RiscvGenerator {
   StackMemoryModule stackCore;
   BBModule bbCore;
   FuncModule funcCore;
+  GlobalVarModule globalCore;
   static RiscvGenerator& getInstance();
 
   // 输入运算符，输出指令

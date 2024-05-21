@@ -105,6 +105,10 @@ void call(ostream& os, const string& name) {
   os << "  call " << name << endl;
 }
 
+void la(ostream& os, const Reg& reg, const string& name) {
+  os << "  la " << regstr(reg) << ", " << name << endl;
+}
+
 const char* regstr(Reg reg) {
   switch (reg) {
     case t0:
@@ -194,7 +198,7 @@ void neq(ostream& os, const Reg& rd, const Reg& rs1, const Reg& rs2) {
 }
 
 void wlabel(ostream& os, const string& label) {
-  os << "\n" << label << ":" << endl;
+  os << label << ":" << endl;
 }
 
 }  // namespace riscv
