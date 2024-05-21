@@ -40,16 +40,16 @@ const string InstResultInfo::Output() const {
   ss << "type: ";
   switch (ty) {
     case ValueType::e_imm:
-      ss << "imm, value: " << content.imm << endl;
+      ss << "imm, value: " << content.imm;
       break;
     case ValueType::e_reg:
-      ss << "reg, Reg: " << regstr(content.reg) << endl;
+      ss << "reg, Reg: " << regstr(content.reg);
       break;
     case ValueType::e_stack:
-      ss << "stack, addr: " << content.addr << endl;
+      ss << "stack, addr: " << content.addr;
       break;
     default:
-      ss << "not init" << endl;
+      ss << "not init";
       break;
   }
   return ss.str();
@@ -87,7 +87,7 @@ void StackMemoryModule::WriteStoreInst(const InstResultInfo& src,
         // store imm to reg
         // 现在不会用到，之后优化寄存器策略时可能用？
         li(os, dest.content.reg, src.content.imm);
-      } else {
+      } else if (dest.ty == ValueType::e_stack) {
         // store imm to stack
         Reg rd = gen.regCore.GetAvailableReg();
         li(os, rd, src.content.imm);
@@ -99,7 +99,7 @@ void StackMemoryModule::WriteStoreInst(const InstResultInfo& src,
       if (dest.ty == ValueType::e_reg) {
         // store reg to reg
         // 啥也不用做，最后会改表
-      } else {
+      } else if (dest.ty == ValueType::e_stack) {
         // store reg to stack
         WriteSW(src.content.reg, dest.content.addr);
         gen.regCore.ReleaseReg(src.content.reg);
@@ -111,6 +111,8 @@ void StackMemoryModule::WriteStoreInst(const InstResultInfo& src,
         WriteLW(rs, src.content.addr);
         WriteSW(rs, dest.content.addr);
         gen.regCore.ReleaseReg(rs);
+      } else if (dest.ty == ValueType::e_reg) {
+        WriteLW(dest.content.reg, src.content.addr);
       }
     }
     default:
@@ -253,12 +255,18 @@ void FuncModule::WriteEpilogue(const InstResultInfo& retValueInfo) {
     li(os, Reg::a0, retValueInfo.content.imm);
   } else if (retValueInfo.ty == ValueType::e_reg) {
     mv(os, Reg::a0, retValueInfo.content.reg);
-  } else {
+  } else if (retValueInfo.ty == ValueType::e_stack) {
     gen.stackCore.WriteLW(a0, retValueInfo.content.addr);
+  } else {
+    // 返回void
   }
 
-  // 回收栈内存
   int stack_memory_alloc = gen.stackCore.stack_memory;
+  // 读取ra
+  if (is_leaf_func)
+    gen.stackCore.WriteLW(Reg::ra, stack_memory_alloc - 4);
+
+  // 回收栈内存
   if (stack_memory_alloc != 0) {
     if (IsImmInBound(stack_memory_alloc)) {
       addi(os, Reg::sp, Reg::sp, stack_memory_alloc);
@@ -269,9 +277,6 @@ void FuncModule::WriteEpilogue(const InstResultInfo& retValueInfo) {
       gen.regCore.ReleaseReg(rd);
     }
   }
-
-  if (is_leaf_func)
-    gen.stackCore.WriteLW(Reg::ra, stack_memory_alloc - 4);
   ret(os);
 }
 

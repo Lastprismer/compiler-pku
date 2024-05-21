@@ -1,7 +1,7 @@
-int f() {
-  return 0;
-}
+int var;
+
+const int one = 1;
 
 int main() {
-  return f();
+  return var + one;
 }

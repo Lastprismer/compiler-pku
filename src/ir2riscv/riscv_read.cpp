@@ -66,46 +66,47 @@ void visit_basic_block(const koopa_raw_basic_block_t& bb) {
 void visit_value(const koopa_raw_value_t& value) {
   //  根据指令类型判断后续需要如何访问
   const auto& kind = value->kind;
-  // cout << GetTypeString(value);
-  // cout << kind.tag;
+  cout << GetTypeString(value) << ' ';
+  cout << kind.tag;
   switch (kind.tag) {
     case KOOPA_RVT_INTEGER:
-      // cout << "  int" << endl;
+      cout << "  int" << endl;
       // visit_inst_int(kind.data.integer);
       break;
     case KOOPA_RVT_ALLOC:
-      // cout << "  alloc" << endl;
+      cout << "  alloc" << endl;
       // visit_inst_alloc(value);
       break;
     case KOOPA_RVT_LOAD:
-      // cout << "  load" << endl;
+      cout << "  load" << endl;
       visit_inst_load(value);
       break;
     case KOOPA_RVT_STORE:
-      // cout << "  store" << endl;
+      cout << "  store" << endl;
       visit_inst_store(value);
       break;
     case KOOPA_RVT_BINARY:
-      // cout << "  binary" << endl;
+      cout << "  binary" << endl;
       visit_inst_binary(value);
       break;
     case KOOPA_RVT_BRANCH:
-      // cout << "  branch" << endl;
+      cout << "  branch" << endl;
       visit_inst_branch(value);
       break;
     case KOOPA_RVT_JUMP:
-      // cout << "  jump" << endl;
+      cout << "  jump" << endl;
       visit_inst_jump(value);
       break;
     case KOOPA_RVT_CALL:
-      // cout << "  call" << endl;
+      cout << "  call" << endl;
       visit_inst_call(value);
+      break;
     case KOOPA_RVT_RETURN:
-      // cout << "  ret" << endl;
+      cout << "  ret" << endl;
       visit_inst_ret(kind.data.ret);
       break;
     default:
-      // cout << "  what?" << endl;
+      cout << "  what?" << endl;
       break;
       // 其他类型暂时遇不到
   }
@@ -157,7 +158,7 @@ void visit_inst_store(const koopa_raw_value_t& inst) {
   } else if (inst_store.value->kind.tag == KOOPA_RVT_FUNC_ARG_REF) {
     // 加载函数参数
     int argid = inst_store.value->kind.data.func_arg_ref.index;
-    InstResultInfo src = GetParamPosition(argid);
+    src = GetParamPosition(argid);
     if (argid >= 8) {
       // 到上一个函数的栈帧里找，也就是将地址加上自己分配的空间
       src.content.addr += stack_core.stack_memory;
@@ -227,15 +228,25 @@ void visit_inst_call(const koopa_raw_value_t& inst) {
   for (int i = 0; i < len; i++) {
     auto value = reinterpret_cast<koopa_raw_value_t>(inst_call.args.buffer[i]);
 
-    // 参数一定是已经计算过并存在栈里的了
-    assert(stack_core.InstResult.find(value) != stack_core.InstResult.end());
+    InstResultInfo src;
+
+    // 参数没有保存：立即数传参
+    if (value->kind.tag == KOOPA_RVT_INTEGER) {
+      src = InstResultInfo(ValueType::e_imm, value->kind.data.integer.value);
+    } else if (stack_core.InstResult.find(value) !=
+               stack_core.InstResult.end()) {
+      src = stack_core.InstResult.at(value);
+    } else {
+      // 还是没有存在栈里？
+      assert(false);
+    }
 
     auto dest = GetParamPosition(i);
     if (dest.ty == ValueType::e_reg) {
       gen.regCore.GetReg(dest.content.reg);
       reg_used.insert(dest.content.reg);
     }
-    stack_core.WriteStoreInst(stack_core.InstResult.at(value), dest);
+    stack_core.WriteStoreInst(src, dest);
   }
   gen.funcCore.WriteCallInst(ParseSymbol(inst_call.callee->name));
   for (auto r : reg_used) {
@@ -243,6 +254,10 @@ void visit_inst_call(const koopa_raw_value_t& inst) {
   }
 
   // 处理函数返回值，计入栈
+  if (inst_call.callee->ty->data.function.ret->tag == KOOPA_RTT_UNIT) {
+    // 函数返回void
+    return;
+  }
   gen.regCore.GetReg(Reg::a0);
   InstResultInfo src(Reg::a0),
       dest(ValueType::e_stack, stack_core.IncreaseStackUsed());
@@ -256,9 +271,14 @@ void visit_inst_ret(const koopa_raw_return_t& inst_ret) {
   auto& instResult = gen.stackCore.InstResult;
   InstResultInfo info;
 
-  if (instResult.find(inst_ret.value) != instResult.end())
+  if (inst_ret.value == nullptr) {
+    // 返回值为void
+    info.ty = ValueType::e_unused;
+  } else if (instResult.find(inst_ret.value) != instResult.end()) {
+    // 返回值在变量中
     info = instResult[inst_ret.value];
-  else if (inst_ret.value->kind.tag == KOOPA_RVT_INTEGER) {
+  } else if (inst_ret.value->kind.tag == KOOPA_RVT_INTEGER) {
+    // 返回值为立即数
     info.ty = ValueType::e_imm;
     info.content.imm = inst_ret.value->kind.data.integer.value;
   }
