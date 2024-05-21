@@ -2,146 +2,154 @@
 
 namespace riscv {
 
-#pragma region BaseModule
-
-BaseModule::BaseModule() : active(false) {}
-
-void BaseModule::Activate() {
-  active = true;
-}
-
-void BaseModule::Deactivate() {
-  active = false;
-}
-
-bool BaseModule::IsActive() {
-  return active;
-}
-
-#pragma endregion
-
 #pragma region Register
 
-RegisterModule::RegisterModule() : BaseModule() {
-  availableRegs = {};
+RegisterModule::RegisterModule() {
+  available_regs = {};
   for (Reg reg = Reg::t0; reg != Reg::ra; reg = (Reg)((int)reg + 1)) {
-    availableRegs.insert(reg);
+    available_regs.insert(reg);
   }
 }
 
-Reg RegisterModule::getAvailableReg() {
-  assert(availableRegs.size() > 0);
-  Reg reg = *availableRegs.begin();
-  availableRegs.erase(reg);
+Reg RegisterModule::GetAvailableReg() {
+  assert(available_regs.size() > 0);
+  Reg reg = *available_regs.begin();
+  available_regs.erase(reg);
   return reg;
 }
 
-void RegisterModule::releaseReg(Reg reg) {
+void RegisterModule::ReleaseReg(Reg reg) {
   if (reg != Reg::NONE)
-    availableRegs.insert(reg);
+    available_regs.insert(reg);
+}
+
+bool RegisterModule::GetReg(const Reg& reg) {
+  if (available_regs.find(reg) != available_regs.end()) {
+    available_regs.erase(reg);
+    return true;
+  }
+  return false;
 }
 
 #pragma endregion
 
 #pragma region Stack
 
-void StackMemoryModule::InstResultInfo::Output() {
-  cout << "type: ";
+const string InstResultInfo::Output() const {
+  stringstream ss;
+  ss << "type: ";
   switch (ty) {
-    case ValueType::imm:
-      cout << "imm, value: " << content.imm << endl;
+    case ValueType::e_imm:
+      ss << "imm, value: " << content.imm << endl;
       break;
-    case ValueType::reg:
-      cout << "reg, Reg: " << regstr(content.reg) << endl;
+    case ValueType::e_reg:
+      ss << "reg, Reg: " << regstr(content.reg) << endl;
       break;
-    case ValueType::stack:
-      cout << "stack, addr: " << content.addr << endl;
+    case ValueType::e_stack:
+      ss << "stack, addr: " << content.addr << endl;
       break;
+    default:
+      ss << "not init" << endl;
+      break;
+  }
+  return ss.str();
+}
+
+InstResultInfo::InstResultInfo() : ty(ValueType::e_unused) {}
+
+InstResultInfo::InstResultInfo(const Reg& reg) : ty(ValueType::e_reg) {
+  content.reg = reg;
+}
+
+InstResultInfo::InstResultInfo(const ValueType& type, int value) : ty(type) {
+  if (type == ValueType::e_imm) {
+    content.imm = value;
+  } else if (type == ValueType::e_stack) {
+    content.addr = value;
+  } else {
+    cerr << "InstResultInfo: invalid type" << endl;
+    assert(false);
+  }
+}
+
+void StackMemoryModule::SetStackMem(const int& mem) {
+  stack_memory = mem;
+  stack_used = 0;
+}
+
+void StackMemoryModule::WriteStoreInst(const InstResultInfo& src,
+                                       const InstResultInfo& dest) {
+  RiscvGenerator& gen = RiscvGenerator::getInstance();
+  ostream& os = gen.setting.getOs();
+  switch (src.ty) {
+    case ValueType::e_imm:
+      if (dest.ty == ValueType::e_reg) {
+        // store imm to reg
+        // 现在不会用到，之后优化寄存器策略时可能用？
+        li(os, dest.content.reg, src.content.imm);
+      } else {
+        // store imm to stack
+        Reg rd = gen.regCore.GetAvailableReg();
+        li(os, rd, src.content.imm);
+        WriteSW(rd, dest.content.addr);
+        gen.regCore.ReleaseReg(rd);
+      }
+      break;
+    case ValueType::e_reg:
+      if (dest.ty == ValueType::e_reg) {
+        // store reg to reg
+        // 啥也不用做，最后会改表
+      } else {
+        // store reg to stack
+        WriteSW(src.content.reg, dest.content.addr);
+        gen.regCore.ReleaseReg(src.content.reg);
+      }
+      break;
+    case ValueType::e_stack: {
+      if (dest.ty == ValueType::e_stack) {
+        Reg rs = gen.regCore.GetAvailableReg();
+        WriteLW(rs, src.content.addr);
+        WriteSW(rs, dest.content.addr);
+        gen.regCore.ReleaseReg(rs);
+      }
+    }
     default:
       break;
   }
   return;
 }
 
-const int& StackMemoryModule::GetStackMem() {
-  assert(IsActive());
-  return stackMemoryNeeded;
-}
-
-void StackMemoryModule::SetStackMem(const int& mem) {
-  assert(IsActive());
-  stackMemoryNeeded = mem;
-}
-
-StackMemoryModule::StoreInfo::StoreInfo(const InstResultInfo& dstInfo,
-                                        const InstResultInfo& srcInfo)
-    : dest(dstInfo), src(srcInfo) {
-  assert(dstInfo.ty != StackMemoryModule::ValueType::imm);
-}
-
-void StackMemoryModule::WriteStoreInst(const StoreInfo& info) {
-  RiscvGenerator& gen = RiscvGenerator::getInstance();
-  StackMemoryModule smem = gen.smem;
-  ostream& os = gen.Setting.getOs();
-  switch (info.src.ty) {
-    case StackMemoryModule::ValueType::imm:
-      if (info.dest.ty == StackMemoryModule::ValueType::reg) {
-        // store imm to reg
-        // 现在不会用到，之后优化寄存器策略时可能用？
-        li(os, info.dest.content.reg, info.src.content.imm);
-      } else {
-        // store imm to stack
-        Reg rd = gen.regmng.getAvailableReg();
-        li(os, rd, info.src.content.imm);
-        WriteSW(rd, info.dest.content.addr);
-        gen.regmng.releaseReg(rd);
-      }
-      break;
-    case StackMemoryModule::ValueType::reg:
-      if (info.dest.ty == StackMemoryModule::ValueType::reg) {
-        // store reg to reg
-        // 啥也不用做，最后会改表
-      } else {
-        // store reg to stack
-        WriteSW(info.src.content.reg, info.dest.content.addr);
-        gen.regmng.releaseReg(info.src.content.reg);
-      }
-      break;
-    case StackMemoryModule::ValueType::stack: {
-      if (info.dest.ty == StackMemoryModule::ValueType::stack) {
-        Reg rs = gen.regmng.getAvailableReg();
-        WriteLW(rs, info.src.content.addr);
-        WriteSW(rs, info.dest.content.addr);
-        gen.regmng.releaseReg(rs);
-      }
-    }
-  }
-  return;
-}
-
 void StackMemoryModule::WriteLI(const Reg& rd, int imm) {
-  ostream& os = RiscvGenerator::getInstance().Setting.getOs();
+  ostream& os = RiscvGenerator::getInstance().setting.getOs();
   li(os, rd, imm);
 }
 
 void StackMemoryModule::WriteLW(const Reg& rd, int addr) {
   auto& gen = RiscvGenerator::getInstance();
-  ostream& os = gen.Setting.getOs();
-  Reg adr = gen.regmng.getAvailableReg();
-  li(os, adr, addr);
-  add(os, adr, adr, Reg::sp);
-  lw(os, rd, adr, 0);
-  gen.regmng.releaseReg(adr);
+  ostream& os = gen.setting.getOs();
+  if (IsImmInBound(addr)) {
+    lw(os, rd, Reg::sp, addr);
+  } else {
+    Reg adr = gen.regCore.GetAvailableReg();
+    li(os, adr, addr);
+    add(os, adr, adr, Reg::sp);
+    lw(os, rd, adr, 0);
+    gen.regCore.ReleaseReg(adr);
+  }
 }
 
 void StackMemoryModule::WriteSW(const Reg& rs, int addr) {
   auto& gen = RiscvGenerator::getInstance();
-  ostream& os = gen.Setting.getOs();
-  Reg adr = gen.regmng.getAvailableReg();
-  li(os, adr, addr);
-  add(os, adr, adr, Reg::sp);
-  sw(os, adr, rs, 0);
-  gen.regmng.releaseReg(adr);
+  ostream& os = gen.setting.getOs();
+  if (IsImmInBound(addr)) {
+    sw(os, Reg::sp, rs, addr);
+  } else {
+    Reg adr = gen.regCore.GetAvailableReg();
+    li(os, adr, addr);
+    add(os, adr, adr, Reg::sp);
+    sw(os, adr, rs, 0);
+    gen.regCore.ReleaseReg(adr);
+  }
 }
 
 void StackMemoryModule::Debug_OutputInstResult() {
@@ -155,52 +163,134 @@ void StackMemoryModule::Debug_OutputInstResult() {
 }
 
 int StackMemoryModule::IncreaseStackUsed() {
-  int addr = StackUsed;
-  StackUsed += 4;
-  return addr;
+  stack_used += 4;
+  return stack_memory - stack_used;
 }
 
-StackMemoryModule::StackMemoryModule()
-    : BaseModule(), stackMemoryNeeded(0), StackUsed(0) {
+int StackMemoryModule::DecreaseStackUsed() {
+  stack_used -= 4;
+  return stack_memory - stack_used;
+}
+
+void StackMemoryModule::Clear() {
+  stack_memory = 0;
+  stack_used = 0;
+  InstResult.clear();
+}
+
+StackMemoryModule::StackMemoryModule() : stack_memory(0), stack_used(0) {
   InstResult = map<koopa_raw_value_t, InstResultInfo>();
 }
 
 #pragma endregion
 
-#pragma region BBModule
+#pragma region BB
 
 BBModule::BBModule() {}
 
 void BBModule::WriteBBName(const string& label) {
-  ostream& os = RiscvGenerator::getInstance().Setting.getOs();
-  wlabel(os, ParseSymbol(label));
+  auto& gen = RiscvGenerator::getInstance();
+  ostream& os = gen.setting.getOs();
+  wlabel(os, ParseSymbol(label) + "_" + gen.funcCore.func_name);
 }
 
 void BBModule::WriteJumpInst(const string& label) {
-  ostream& os = RiscvGenerator::getInstance().Setting.getOs();
-  j(os, ParseSymbol(label));
+  auto& gen = RiscvGenerator::getInstance();
+  ostream& os = gen.setting.getOs();
+  j(os, ParseSymbol(label) + "_" + gen.funcCore.func_name);
 }
 
 void BBModule::WriteBranch(const Reg& cond,
                            const string& trueLabel,
                            const string& falseLabel) {
-  ostream& os = RiscvGenerator::getInstance().Setting.getOs();
-  const string trueMid = ParseSymbol(trueLabel) + "_mid";
+  auto& gen = RiscvGenerator::getInstance();
+  ostream& os = gen.setting.getOs();
+  const string trueMid =
+      ParseSymbol(trueLabel) + "_mid_" + gen.funcCore.func_name;
   bnez(os, cond, trueMid);
   // 否则跳到false
-  j(os, ParseSymbol(falseLabel));
+  j(os, ParseSymbol(falseLabel) + "_" + gen.funcCore.func_name);
   wlabel(os, trueMid);
-  j(os, ParseSymbol(trueLabel));
+  j(os, ParseSymbol(trueLabel) + "_" + gen.funcCore.func_name);
+}
+
+#pragma endregion
+
+#pragma region Func
+
+FuncModule::FuncModule() : is_leaf_func(false), func_name() {}
+
+void FuncModule::WritePrologue() {
+  auto& gen = RiscvGenerator::getInstance();
+  auto& os = gen.setting.getOs();
+  os << "\n  .text" << endl;
+  os << "  .globl " << func_name << endl;
+  os << func_name << ":" << endl;
+
+  // 分配栈内存
+  int stackMemoryAlloc = gen.stackCore.stack_memory;
+  if (stackMemoryAlloc == 0)
+    return;
+  if (IsImmInBound(-stackMemoryAlloc)) {
+    addi(os, Reg::sp, Reg::sp, -stackMemoryAlloc);
+  } else {
+    Reg rd = gen.regCore.GetAvailableReg();
+    li(os, rd, -stackMemoryAlloc);
+    add(os, Reg::sp, Reg::sp, rd);
+    gen.regCore.ReleaseReg(rd);
+  }
+
+  // 保存ra
+  if (is_leaf_func)
+    gen.stackCore.WriteSW(Reg::ra, gen.stackCore.IncreaseStackUsed());
+}
+
+void FuncModule::WriteEpilogue(const InstResultInfo& retValueInfo) {
+  auto& gen = RiscvGenerator::getInstance();
+  auto& os = gen.setting.getOs();
+
+  if (retValueInfo.ty == ValueType::e_imm) {
+    li(os, Reg::a0, retValueInfo.content.imm);
+  } else if (retValueInfo.ty == ValueType::e_reg) {
+    mv(os, Reg::a0, retValueInfo.content.reg);
+  } else {
+    gen.stackCore.WriteLW(a0, retValueInfo.content.addr);
+  }
+
+  // 回收栈内存
+  int stack_memory_alloc = gen.stackCore.stack_memory;
+  if (stack_memory_alloc != 0) {
+    if (IsImmInBound(stack_memory_alloc)) {
+      addi(os, Reg::sp, Reg::sp, stack_memory_alloc);
+    } else {
+      Reg rd = gen.regCore.GetAvailableReg();
+      li(os, rd, stack_memory_alloc);
+      add(os, Reg::sp, Reg::sp, rd);
+      gen.regCore.ReleaseReg(rd);
+    }
+  }
+
+  if (is_leaf_func)
+    gen.stackCore.WriteLW(Reg::ra, stack_memory_alloc - 4);
+  ret(os);
+}
+
+void FuncModule::WriteCallInst(const string& name) {
+  ostream& os = RiscvGenerator::getInstance().setting.getOs();
+  call(os, name);
+}
+
+void FuncModule::Clear() {
+  is_leaf_func = false;
+  func_name = string();
 }
 
 #pragma endregion
 
 #pragma region RiscvGen
 
-RiscvGenerator::RiscvGenerator() : smem(), BBMan() {
-  Setting.setOs(cout).setIndent(0);
-  FunctionName = "";
-  regmng = RegisterModule();
+RiscvGenerator::RiscvGenerator() : regCore(), stackCore(), bbCore() {
+  setting.setOs(cout).setIndent(0);
 }
 
 RiscvGenerator& RiscvGenerator::getInstance() {
@@ -208,57 +298,10 @@ RiscvGenerator& RiscvGenerator::getInstance() {
   return riscgen;
 }
 
-void RiscvGenerator::WritePrologue() {
-  ostream& os = Setting.getOs();
-  os << "  .text" << endl;
-  os << "  .globl " << FunctionName << endl;
-  os << FunctionName << ":" << endl;
-
-  // 分配栈内存
-  int stackMemoryAlloc = smem.GetStackMem();
-  if (stackMemoryAlloc == 0)
-    return;
-  if (IsImmInBound(-stackMemoryAlloc)) {
-    addi(os, Reg::sp, Reg::sp, -stackMemoryAlloc);
-  } else {
-    Reg rd = regmng.getAvailableReg();
-    li(os, rd, -stackMemoryAlloc);
-    add(os, Reg::sp, Reg::sp, rd);
-    regmng.releaseReg(rd);
-  }
-}
-
-void RiscvGenerator::WriteEpilogue(
-    const StackMemoryModule::InstResultInfo& retValueInfo) {
-  ostream& os = Setting.getOs();
-  // 此时栈内应有唯一值
-  if (retValueInfo.ty == StackMemoryModule::ValueType::imm) {
-    li(os, Reg::a0, retValueInfo.content.imm);
-  } else if (retValueInfo.ty == StackMemoryModule::ValueType::reg) {
-    mv(os, Reg::a0, retValueInfo.content.reg);
-  } else {
-    smem.WriteLW(a0, retValueInfo.content.addr);
-  }
-
-  // 回收栈内存
-  int stackMemoryAlloc = smem.GetStackMem();
-  if (stackMemoryAlloc != 0) {
-    if (IsImmInBound(stackMemoryAlloc)) {
-      addi(os, Reg::sp, Reg::sp, stackMemoryAlloc);
-    } else {
-      Reg rd = regmng.getAvailableReg();
-      li(os, rd, stackMemoryAlloc);
-      add(os, Reg::sp, Reg::sp, rd);
-      regmng.releaseReg(rd);
-    }
-  }
-  ret(os);
-}
-
 void RiscvGenerator::WriteBinaInst(OpType op,
                                    const Reg& left,
                                    const Reg& right) {
-  ostream& os = Setting.getOs();
+  ostream& os = setting.getOs();
 
   switch (op) {
     case koopa_raw_binary_op::KOOPA_RBO_NOT_EQ:
@@ -318,6 +361,11 @@ void RiscvGenerator::WriteBinaInst(OpType op,
       break;
       assert(false);
   }
+}
+
+void RiscvGenerator::Clear() {
+  stackCore.Clear();
+  funcCore.Clear();
 }
 
 #pragma endregion

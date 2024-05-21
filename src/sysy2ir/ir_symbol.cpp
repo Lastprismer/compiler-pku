@@ -113,7 +113,7 @@ void SymbolTable::InsertEntry(const SymbolTableEntry& entry) {
     return;
   }
   // do actual insert
-  table.emplace(make_pair(entry.var_name, entry));
+  table.emplace(entry.var_name, entry);
 }
 
 void SymbolTable::ClearTable() {

@@ -6,7 +6,7 @@ void ir2riscv(string ircode, const char* output) {
   koopa_raw_program_builder_t builder;
   koopa_raw_program_t program = get_raw_program(ircode, builder);
   stringstream ss;
-  RiscvGenerator::getInstance().Setting.setOs(ss);
+  RiscvGenerator::getInstance().setting.setOs(ss);
   visit_program(program);
 
   ofstream outfile(output);

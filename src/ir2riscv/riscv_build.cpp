@@ -101,6 +101,10 @@ void beqz(ostream& os, const Reg& reg, const string& label) {
   os << "  beqz " << regstr(reg) << ", " << label << endl;
 }
 
+void call(ostream& os, const string& name) {
+  os << "  call " << name << endl;
+}
+
 const char* regstr(Reg reg) {
   switch (reg) {
     case t0:

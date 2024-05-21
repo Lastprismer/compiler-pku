@@ -97,7 +97,7 @@ FuncManager::FuncManager()
 
 void FuncManager::WriteFuncPrologue() {
   // 记入函数表
-  func_table.emplace(make_pair(func_name, ret_ty));
+  func_table.emplace(func_name, ret_ty);
 
   auto& setting = IRGenerator::getInstance().setting;
   auto& os = setting.getOs();
@@ -192,14 +192,14 @@ const map<string, VarType>& FuncManager::GetFuncTable() const {
 }
 
 void FuncManager::AddLibFuncs() {
-  func_table.emplace(make_pair(string("getint"), VarType::e_int));
-  func_table.emplace(make_pair(string("getch"), VarType::e_int));
-  func_table.emplace(make_pair(string("getarray"), VarType::e_int));
-  func_table.emplace(make_pair(string("putint"), VarType::e_void));
-  func_table.emplace(make_pair(string("putch"), VarType::e_void));
-  func_table.emplace(make_pair(string("putarray"), VarType::e_void));
-  func_table.emplace(make_pair(string("starttime"), VarType::e_void));
-  func_table.emplace(make_pair(string("stoptime"), VarType::e_void));
+  func_table.emplace(string("getint"), VarType::e_int);
+  func_table.emplace(string("getch"), VarType::e_int);
+  func_table.emplace(string("getarray"), VarType::e_int);
+  func_table.emplace(string("putint"), VarType::e_void);
+  func_table.emplace(string("putch"), VarType::e_void);
+  func_table.emplace(string("putarray"), VarType::e_void);
+  func_table.emplace(string("starttime"), VarType::e_void);
+  func_table.emplace(string("stoptime"), VarType::e_void);
 }
 
 const string FuncManager::getParamVarName(const string& name) const {

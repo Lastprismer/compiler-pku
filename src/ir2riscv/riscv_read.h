@@ -11,8 +11,6 @@
 #include "riscv_gen.h"
 #include "riscv_util.h"
 
-using namespace std;
-
 namespace riscv {
 
 /* read.cpp */
@@ -53,6 +51,9 @@ void visit_inst_branch(const koopa_raw_value_t& inst);
 // 访问跳转
 void visit_inst_jump(const koopa_raw_value_t& inst);
 
+// 访问函数调用
+void visit_inst_call(const koopa_raw_value_t& inst);
+
 // 访问ret
 void visit_inst_ret(const koopa_raw_return_t& inst_ret);
 
@@ -62,6 +63,9 @@ void visit_inst_ret(const koopa_raw_return_t& inst_ret);
 void CalcMemoryNeeded(const koopa_raw_function_t& func);
 
 // 获取某条指令返回值的放置位置，如果在栈上，则将其拉回寄存器内
-Reg GetValueResult(const koopa_raw_value_t& value);
+const Reg GetValueResult(const koopa_raw_value_t& value);
 
-}
+// 给定参数号，输出应该存储这个参数的位置
+const InstResultInfo GetParamPosition(const int& param_cnt);
+
+}  // namespace riscv

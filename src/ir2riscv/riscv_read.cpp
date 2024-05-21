@@ -37,16 +37,20 @@ void visit_slice(const koopa_raw_slice_t& slice) {
 }
 
 void visit_func(const koopa_raw_function_t& func) {
-  // 执行一些其他的必要操作
-  // ...
+  // 处理函数定义
+  if (func->bbs.len == 0) {
+    return;
+  }
   // 访问所有基本块
   RiscvGenerator& gen = RiscvGenerator::getInstance();
-  gen.FunctionName = ParseSymbol(func->name);
-  gen.smem.Activate();
+
+  gen.Clear();
+
+  gen.funcCore.func_name = ParseSymbol(func->name);
   CalcMemoryNeeded(func);
-  gen.WritePrologue();
+  gen.funcCore.WritePrologue();
+
   visit_slice(func->bbs);
-  gen.smem.Deactivate();
 }
 
 void visit_basic_block(const koopa_raw_basic_block_t& bb) {
@@ -55,7 +59,7 @@ void visit_basic_block(const koopa_raw_basic_block_t& bb) {
   // 访问所有指令
   // os << "basic block: name: " << bb->name << endl;
   auto& gen = RiscvGenerator::getInstance();
-  gen.BBMan.WriteBBName(bb->name);
+  gen.bbCore.WriteBBName(bb->name);
   visit_slice(bb->insts);
 }
 
@@ -93,6 +97,9 @@ void visit_value(const koopa_raw_value_t& value) {
       // cout << "  jump" << endl;
       visit_inst_jump(value);
       break;
+    case KOOPA_RVT_CALL:
+      // cout << "  call" << endl;
+      visit_inst_call(value);
     case KOOPA_RVT_RETURN:
       // cout << "  ret" << endl;
       visit_inst_ret(kind.data.ret);
@@ -116,99 +123,146 @@ void visit_inst_alloc(const koopa_raw_value_t& value) {
 
 void visit_inst_load(const koopa_raw_value_t& inst_load) {
   RiscvGenerator& gen = RiscvGenerator::getInstance();
-  StackMemoryModule& smem = gen.smem;
-  if (smem.InstResult.find(inst_load->kind.data.load.src) !=
-      smem.InstResult.end()) {
-    smem.InstResult[inst_load] = smem.InstResult[inst_load->kind.data.load.src];
+  StackMemoryModule& stack_core = gen.stackCore;
+  if (stack_core.InstResult.find(inst_load->kind.data.load.src) !=
+      stack_core.InstResult.end()) {
+    stack_core.InstResult[inst_load] =
+        stack_core.InstResult[inst_load->kind.data.load.src];
     return;
   }
   assert(false);
 }
 
 void visit_inst_store(const koopa_raw_value_t& inst) {
-  const koopa_raw_store_t& inst_store = inst->kind.data.store;
-  RiscvGenerator& gen = RiscvGenerator::getInstance();
-  StackMemoryModule& smem = gen.smem;
-  StackMemoryModule::InstResultInfo dst, src;
-  if (smem.InstResult.find(inst_store.dest) != smem.InstResult.end()) {
-    dst = smem.InstResult[inst_store.dest];
+  const auto& inst_store = inst->kind.data.store;
+  auto& gen = RiscvGenerator::getInstance();
+  auto& stack_core = gen.stackCore;
+
+  InstResultInfo dest, src;
+  if (stack_core.InstResult.find(inst_store.dest) !=
+      stack_core.InstResult.end()) {
+    dest = stack_core.InstResult.at(inst_store.dest);
   } else {
     // 存进栈里
-    dst.ty = StackMemoryModule::ValueType::stack;
-    dst.content.addr = smem.IncreaseStackUsed();
-    smem.InstResult[inst_store.dest] = dst;
+    dest.ty = ValueType::e_stack;
+    dest.content.addr = stack_core.IncreaseStackUsed();
+    stack_core.InstResult[inst_store.dest] = dest;
   }
 
   if (inst_store.value->kind.tag == KOOPA_RVT_INTEGER) {
-    src.ty = StackMemoryModule::ValueType::imm;
+    // 加载立即数
+    src.ty = ValueType::e_imm;
     src.content.imm = inst_store.value->kind.data.integer.value;
+
+  } else if (inst_store.value->kind.tag == KOOPA_RVT_FUNC_ARG_REF) {
+    // 加载函数参数
+    int argid = inst_store.value->kind.data.func_arg_ref.index;
+    InstResultInfo src = GetParamPosition(argid);
+    if (argid >= 8) {
+      // 到上一个函数的栈帧里找，也就是将地址加上自己分配的空间
+      src.content.addr += stack_core.stack_memory;
+    }
+
   } else {
     // src不应该是stack
-    auto srcResult = smem.InstResult[inst_store.value];
+    auto srcResult = stack_core.InstResult.at(inst_store.value);
     src.ty = srcResult.ty;
-    if (src.ty == StackMemoryModule::ValueType::reg)
+    if (src.ty == ValueType::e_reg)
       src.content.reg = srcResult.content.reg;
     else
       src.content.addr = srcResult.content.addr;
   }
 
-  smem.WriteStoreInst(StackMemoryModule::StoreInfo(dst, src));
+  stack_core.WriteStoreInst(src, dest);
 }
 
 void visit_inst_binary(const koopa_raw_value_t& inst) {
   const koopa_raw_binary_t& inst_bina = inst->kind.data.binary;
   RiscvGenerator& gen = RiscvGenerator::getInstance();
-  auto& smem = gen.smem;
+  auto& stack_core = gen.stackCore;
   Reg r1 = GetValueResult(inst_bina.lhs);
   Reg r2 = GetValueResult(inst_bina.rhs);
   RiscvGenerator::getInstance().WriteBinaInst(inst_bina.op, r1, r2);
+
   // 把r1的内容存回内存，返回地址?
-  StackMemoryModule::InstResultInfo dst, src;
-  dst.ty = StackMemoryModule::ValueType::stack;
-  dst.content.addr = smem.IncreaseStackUsed();
-  src.ty = StackMemoryModule::ValueType::reg;
-  src.content.reg = r1;
-  smem.WriteStoreInst(StackMemoryModule::StoreInfo(dst, src));
-  if (smem.InstResult.find(inst_bina.rhs) != smem.InstResult.end() ||
+  InstResultInfo dest(ValueType::e_stack, stack_core.IncreaseStackUsed()),
+      src(r1);
+  stack_core.WriteStoreInst(src, dest);
+  if (stack_core.InstResult.find(inst_bina.rhs) !=
+          stack_core.InstResult.end() ||
       inst_bina.rhs->kind.tag == KOOPA_RVT_INTEGER) {  // 保存过或是立即数
     // r2是临时分配的
-    gen.regmng.releaseReg(r2);
+    gen.regCore.ReleaseReg(r2);
   }
-  smem.InstResult[inst] = dst;
+  stack_core.InstResult.emplace(inst, dest);
 }
 
 void visit_inst_branch(const koopa_raw_value_t& inst) {
   auto& gen = RiscvGenerator::getInstance();
-  auto smem = gen.smem;
-  auto branch = inst->kind.data.branch;
+  auto& stack_core = gen.stackCore;
+  auto& branch = inst->kind.data.branch;
   Reg cond = GetValueResult(branch.cond);
-  gen.BBMan.WriteBranch(cond, string(branch.true_bb->name),
-                        string(branch.false_bb->name));
+  gen.bbCore.WriteBranch(cond, string(branch.true_bb->name),
+                         string(branch.false_bb->name));
 
-  if (smem.InstResult.find(branch.cond) != smem.InstResult.end() ||
+  if (stack_core.InstResult.find(branch.cond) != stack_core.InstResult.end() ||
       branch.cond->kind.tag == KOOPA_RVT_INTEGER) {  // 保存过或是立即数
     // cond是临时分配的
-    gen.regmng.releaseReg(cond);
+    gen.regCore.ReleaseReg(cond);
   }
 }
 
 void visit_inst_jump(const koopa_raw_value_t& inst) {
   auto& gen = RiscvGenerator::getInstance();
-  gen.BBMan.WriteJumpInst(inst->kind.data.jump.target->name);
+  gen.bbCore.WriteJumpInst(inst->kind.data.jump.target->name);
+}
+
+void visit_inst_call(const koopa_raw_value_t& inst) {
+  auto& gen = RiscvGenerator::getInstance();
+  auto& stack_core = gen.stackCore;
+  const auto& inst_call = inst->kind.data.call;
+  int len = inst_call.args.len;
+  set<Reg> reg_used;
+
+  for (int i = 0; i < len; i++) {
+    auto value = reinterpret_cast<koopa_raw_value_t>(inst_call.args.buffer[i]);
+
+    // 参数一定是已经计算过并存在栈里的了
+    assert(stack_core.InstResult.find(value) != stack_core.InstResult.end());
+
+    auto dest = GetParamPosition(i);
+    if (dest.ty == ValueType::e_reg) {
+      gen.regCore.GetReg(dest.content.reg);
+      reg_used.insert(dest.content.reg);
+    }
+    stack_core.WriteStoreInst(stack_core.InstResult.at(value), dest);
+  }
+  gen.funcCore.WriteCallInst(ParseSymbol(inst_call.callee->name));
+  for (auto r : reg_used) {
+    gen.regCore.ReleaseReg(r);
+  }
+
+  // 处理函数返回值，计入栈
+  gen.regCore.GetReg(Reg::a0);
+  InstResultInfo src(Reg::a0),
+      dest(ValueType::e_stack, stack_core.IncreaseStackUsed());
+  stack_core.WriteStoreInst(src, dest);
+  gen.regCore.ReleaseReg(Reg::a0);
+  stack_core.InstResult.emplace(inst, dest);
 }
 
 void visit_inst_ret(const koopa_raw_return_t& inst_ret) {
   RiscvGenerator& gen = RiscvGenerator::getInstance();
-  auto& instResult = gen.smem.InstResult;
-  StackMemoryModule::InstResultInfo info;
+  auto& instResult = gen.stackCore.InstResult;
+  InstResultInfo info;
 
   if (instResult.find(inst_ret.value) != instResult.end())
     info = instResult[inst_ret.value];
   else if (inst_ret.value->kind.tag == KOOPA_RVT_INTEGER) {
-    info.ty = StackMemoryModule::ValueType::imm;
+    info.ty = ValueType::e_imm;
     info.content.imm = inst_ret.value->kind.data.integer.value;
   }
-  gen.WriteEpilogue(info);
+  gen.funcCore.WriteEpilogue(info);
 }
 
 #pragma endregion
@@ -216,9 +270,13 @@ void visit_inst_ret(const koopa_raw_return_t& inst_ret) {
 #pragma region util
 
 void CalcMemoryNeeded(const koopa_raw_function_t& func) {
-  int allocSize = 0;
+  int alloc_size = 0;
   // 遍历函数所有的bb中的所有指令
   const koopa_raw_slice_t& func_bbs = func->bbs;
+  // 计算ra保存
+  bool has_call_inst = false;
+  // 计算为其他函数调用参数分配的空间
+  int max_called_func_params = 0;
 
   assert(func_bbs.kind == KOOPA_RSIK_BASIC_BLOCK);
   for (size_t i = 0; i < func_bbs.len; ++i) {
@@ -229,44 +287,85 @@ void CalcMemoryNeeded(const koopa_raw_function_t& func) {
     for (size_t j = 0; j < bb->insts.len; ++j) {
       const koopa_raw_value_t& value =
           reinterpret_cast<koopa_raw_value_t>(bb->insts.buffer[j]);
-      // alloc和binary
-      if (value->kind.tag == KOOPA_RVT_ALLOC ||
-          value->kind.tag == KOOPA_RVT_BINARY)
-        allocSize += 4;
+      // alloc和返回值为int32的非load语句
+      if ((value->ty->tag == KOOPA_RTT_INT32 &&
+           value->kind.tag != KOOPA_RVT_LOAD) ||
+          value->kind.tag == KOOPA_RVT_ALLOC)
+        alloc_size += 4;
+
+      if (value->kind.tag == KOOPA_RVT_CALL) {
+        has_call_inst = true;
+        max_called_func_params =
+            max(max_called_func_params, (int)value->kind.data.call.args.len);
+      }
     }
   }
 
+  if (has_call_inst) {
+    alloc_size += 4;
+  }
+
+  if (max_called_func_params > 8) {
+    alloc_size += 4 * (max_called_func_params - 8);
+  }
+
   // 向上进位到16
-  std::cout << "allocSize: " << allocSize << std::endl;
-  allocSize = (allocSize + 15) / 16 * 16;
-  RiscvGenerator::getInstance().smem.SetStackMem(allocSize);
+  std::cout << "alloc size: " << alloc_size << std::endl;
+  alloc_size = (alloc_size + 15) / 16 * 16;
+
+  auto& gen = RiscvGenerator::getInstance();
+  gen.stackCore.SetStackMem(alloc_size);
+  gen.funcCore.is_leaf_func = has_call_inst;
   return;
 }
 
-Reg GetValueResult(const koopa_raw_value_t& value) {
+const Reg GetValueResult(const koopa_raw_value_t& value) {
   RiscvGenerator& gen = RiscvGenerator::getInstance();
-  auto& smem = gen.smem;
+  auto& stack_core = gen.stackCore;
   if (value->kind.tag == KOOPA_RVT_INTEGER) {
     // 处理常数
-    Reg rs = gen.regmng.getAvailableReg();
-    smem.WriteLI(rs, value->kind.data.integer.value);
+    Reg rs = gen.regCore.GetAvailableReg();
+    stack_core.WriteLI(rs, value->kind.data.integer.value);
     return rs;
   }
-  assert(smem.InstResult.find(value) != smem.InstResult.end());
+  assert(stack_core.InstResult.find(value) != stack_core.InstResult.end());
 
-  StackMemoryModule::InstResultInfo info;
-  info = smem.InstResult.at(value);
-  if (info.ty == StackMemoryModule::ValueType::reg) {
+  InstResultInfo info;
+  info = stack_core.InstResult.at(value);
+  if (info.ty == ValueType::e_reg) {
     cout << "will this actually run?" << endl;
     // 还没做分配策略的
     return info.content.reg;
-  } else if (info.ty == StackMemoryModule::ValueType::stack) {
+  } else if (info.ty == ValueType::e_stack) {
     // 先读出
-    Reg rs = gen.regmng.getAvailableReg();
-    smem.WriteLW(rs, info.content.addr);
+    Reg rs = gen.regCore.GetAvailableReg();
+    stack_core.WriteLW(rs, info.content.addr);
     return rs;
   }
   assert(false);
+}
+
+const InstResultInfo GetParamPosition(const int& param_cnt) {
+  switch (param_cnt) {
+    case 0:
+      return InstResultInfo(Reg::a0);
+    case 1:
+      return InstResultInfo(Reg::a1);
+    case 2:
+      return InstResultInfo(Reg::a2);
+    case 3:
+      return InstResultInfo(Reg::a3);
+    case 4:
+      return InstResultInfo(Reg::a4);
+    case 5:
+      return InstResultInfo(Reg::a5);
+    case 6:
+      return InstResultInfo(Reg::a6);
+    case 7:
+      return InstResultInfo(Reg::a7);
+    default:
+      return InstResultInfo(ValueType::e_stack, (param_cnt - 8) * 4);
+  }
 }
 
 #pragma endregion

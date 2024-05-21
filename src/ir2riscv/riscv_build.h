@@ -100,6 +100,10 @@ void bnez(ostream& os, const Reg& reg, const string& label);
 // 行为：判断reg的值，如果为0则跳转到目标，否则继续执行下一条指令
 void beqz(ostream& os, const Reg& reg, const string& label);
 
+// 语法：call {name}
+// 行为：调用函数，从一系列寄存器中取出变量，返回值存入ra
+void call(ostream& os, const string& name);
+
 /* --- 辅助函数 ---*/
 
 const char* regstr(Reg reg);

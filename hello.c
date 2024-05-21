@@ -1,8 +1,7 @@
-int f(int p) {
-  return p;
+int f() {
+  return 0;
 }
-const int p = 20;
 
 int main() {
-  return f(p);
+  return f();
 }
