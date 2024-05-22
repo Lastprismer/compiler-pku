@@ -1,13 +1,25 @@
 #pragma once
 
+#include <sstream>
 #include <string>
+#include <vector>
 
 namespace ir {
 
-using std::string;
+using std::string, std::vector, std::stringstream;
 
 enum class SymbolType { e_unused, e_const, e_var };
-enum class VarType { e_unused, e_int, e_void, e_pointer };
+enum class VarType { e_unused, e_int, e_void, e_arr };
+
+// 数组信息
+struct ArrInfo {
+  int dimension;
+  vector<int> shape;
+  ArrInfo();
+  ArrInfo(const int& dim, const vector<int>& _shape);
+  // 获取koopa变量类型名称，如[i32, 2]
+  const string GetType() const;
+};
 
 enum OpID {
   UNARY_POS,

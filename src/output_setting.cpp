@@ -16,10 +16,10 @@ int& GenSettings::getIndent() {
   return indent;
 }
 
-ostream& GenSettings::getOs() {
+ostream& GenSettings::getOs() const {
   return *os;
 }
 
-const string GenSettings::getIndentStr() {
+const string GenSettings::getIndentStr() const {
   return string(indent, ' ');
 }

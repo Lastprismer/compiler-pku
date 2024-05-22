@@ -1,34 +1,11 @@
-int x, y;
-
-int t() {
-  x = x + 1;
-  return 1;
-}
-
-int f() {
-  y = y + 1;
-  return 0;
-}
-
 int main() {
-  int sum = 0;
-  sum = sum + (f() || f());
-  sum = sum + (f() || t());
-  sum = sum + (t() || f());
-  sum = sum + (t() || t());
-  sum = sum + (f() && f());
-  sum = sum + (f() && t());
-  sum = sum + (t() && f());
-  sum = sum + (t() && t());
-  t() || t() && t();
-  f() || t() && t();
-  f() || f() && t();
-  t() && t() || t();
-  f() && t() || t();
-  f() && f() || f();
-  putint(x);
-  putch(32);
-  putint(y);
-  putch(10);
-  return sum;
+  int arr[10] = {1, 2, 3, 4, 5};
+  int i = 0;
+  while (i < 10) {
+    int x[10] = {};
+    arr[i] = arr[i] + i + x[i];
+    x[i] = arr[i];
+    i = i + 1;
+  }
+  return arr[9];
 }

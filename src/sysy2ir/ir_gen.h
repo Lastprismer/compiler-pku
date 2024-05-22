@@ -4,14 +4,14 @@
 #include <cstring>
 #include <deque>
 #include <iostream>
+#include <map>
 #include <sstream>
 #include <string>
 #include <vector>
-#include "ir_symbol.h"
 #include "ir_util.h"
 #include "output_setting.h"
 
-using std::vector;
+using std::vector, std::map;
 
 namespace ir {
 // 栈内元素类型
@@ -48,6 +48,141 @@ struct LoopInfo {
   int next_label;
   LoopInfo();
 };
+
+#pragma region symbol
+
+class SymbolManager;
+struct SymbolTableEntry {
+  // 常数或变量
+  SymbolType symbol_type;
+  // 变量类型
+  VarType var_type;
+  // 懒得union
+  string var_name;
+  int const_value;
+  ArrInfo arr_info;
+  int id;
+
+  SymbolTableEntry();
+  // @ + name
+  const string GetAllocName() const;
+  // 声明的指令
+  const string GetAllocInst() const;
+  // 加载的指令
+  const string GetLoadInst(const string& loadToSymbolName) const;
+  // 赋值的指令
+  const string GetStoreInst(const string& storeFromSymbolName) const;
+  const string GetStoreInst(const int& imm) const;
+};
+
+class BaseProcessor {
+ private:
+  bool _enable;
+
+ public:
+  BaseProcessor();
+  void Enable();
+  void Disable();
+  const bool& IsEnabled();
+};
+
+// 变量声明处理器
+class DeclaimProcessor : public BaseProcessor {
+ private:
+  // 保证只在处理声明的语句时启用
+  SymbolType current_symbol_type;
+  VarType current_var_type;
+  int var_pool;
+
+ public:
+  // 当前声明的变量是不是全局变量
+  bool global;
+
+  DeclaimProcessor();
+  void SetSymbolType(const SymbolType& type);
+  void SetVarType(const VarType& type);
+  // 重置，在函数调用完后（重置变量池）
+  void Reset();
+
+  // 生成常数变量表项
+  SymbolTableEntry GenerateConstEntry(const string& varName, const int& value);
+
+  // 生成数组变量表项
+  // 常数数组也调用：表项中不存储常数数组初始化信息，因为没必要
+  SymbolTableEntry GenerateArrEntry(const string& var_name,
+                                    const ArrInfo& info);
+
+  // 生成无初始化的变量表项
+  SymbolTableEntry GenerateVarEntry(const string& varName,
+                                    const VarType& var_ty);
+
+  // 即时生成表项，用于短路运算临时变量，不插入符号表
+  SymbolTableEntry QuickGenEntry(const SymbolType& st,
+                                 const VarType& vt,
+                                 string name);
+
+  // 获取当前正在初始化的变量的类型（逻辑运算的编译时常数用）
+  const SymbolType getCurSymType() const;
+
+  // 获取当前正在初始化的变量的类型（逻辑运算的编译时常数用）
+  const VarType getCurVarType() const;
+  const int RegisterVar();
+};
+
+// 变量赋值处理器
+class AssignmentProcessor : public BaseProcessor {
+ public:
+  AssignmentProcessor();
+  // 保证在有值的时候才会用到
+  SymbolTableEntry current_var;
+  // 对数组变量赋值时的地址信息
+  RetInfo arr_addr;
+
+  // 对存储变量赋值
+  void WriteAssign(const RetInfo& value) const;
+};
+
+class SymbolTable {
+ public:
+  // 表
+  map<string, SymbolTableEntry> table;
+  SymbolTable();
+  // utility
+  bool TryGetEntry(string _symbol_name, SymbolTableEntry& out) const;
+  void InsertEntry(const SymbolTableEntry& entry);
+  void ClearTable();
+
+  // lv5
+  // 到父表的指针
+  // 不需要存子表
+  SymbolTable* parent;
+};
+
+class SymbolManager {
+ public:
+  // 变量声明处理器
+  DeclaimProcessor dproc;
+  // 变量赋值处理器
+  AssignmentProcessor aproc;
+
+  // lv5
+  // 根表
+  SymbolTable RootTable;
+  // 当前的表
+  SymbolTable* currentTable;
+
+  SymbolManager();
+  // 递归从当前的表向根表查询
+  const SymbolTableEntry getEntry(string symbolName);
+  // 向当前的表插入
+  void InsertEntry(SymbolTableEntry entry);
+  // 推入一个新表
+  void PushScope();
+  // 弹出一个表
+  void PopScope();
+};
+
+#pragma endregion
 
 #pragma region Branch
 
@@ -166,9 +301,9 @@ class IRGenerator {
 #pragma region lv4
   // 输出声明变量的指令
   void WriteAllocInst(const SymbolTableEntry& entry);
-  // 输出加载变量的指令，加载得到的符号节点将推入栈顶
+  // 输出加载变量的指令
   const RetInfo WriteLoadInst(const SymbolTableEntry& entry);
-  // 输出写入变量的指令，栈顶的节点将用于写入
+  // 输出写入变量的指令
   void WriteStoreInst(const RetInfo& value, const SymbolTableEntry& entry);
 
 #pragma endregion
@@ -208,7 +343,34 @@ class IRGenerator {
   void WriteLibFuncDecl();
   // 生成全局变量定义
   void WriteGlobalVar(const SymbolTableEntry& entry, const RetInfo& init);
+
 #pragma endregion
+
+#pragma region lv9
+  // 生成全局数组变量定义
+  void WriteGlobalArrVar(const SymbolTableEntry& entry,
+                         const vector<RetInfo>& init);
+
+  // 生成局部数组变量定义
+  void WriteAllocInst(const SymbolTableEntry& entry,
+                      const bool& has_init,
+                      const vector<RetInfo>& init);
+
+  // 生成getelemptr语句
+  // 语法：{symbol} = getelemptr {arr_var}, {addr}
+  // 行为：取出arr_var[addr]的地址存入symbol
+  void WriteGetelemptrInst(const string& symbol,
+                           const string& arr_var,
+                           const RetInfo& addr) const;
+
+  // 生成从数组中load值的语句
+  const RetInfo WriteLoadArrInst(const SymbolTableEntry& entry,
+                                 const RetInfo& addr);
+
+  // 生成向数组中store值的语句
+  void WriteStoreArrInst(const SymbolTableEntry& entry,
+                         const RetInfo& value,
+                         const RetInfo& addr);
 
  private:
   const int registerNewVar();

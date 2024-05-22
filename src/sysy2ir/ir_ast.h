@@ -26,11 +26,26 @@ ConstDeclList   ::= "," ConstDef ConstDeclList | epsilon
 
 BType           ::= "int" | "void"
 ConstDef        ::= IDENT "=" ConstInitVal
+                  | IDENT ArrSize "=" ConstArrVal
 ConstInitVal    ::= ConstExp
 VarDecl         ::= BType VarDef VarDeclList ";"
 VarDeclList     ::= "," VarDef VarDeclList | epsilon
-VarDef          ::= IDENT | IDENT "=" InitVal
+VarDef          ::= IDENT
+                  | IDENT "=" InitVal
+                  | IDENT ArrSize
+                  | IDENT ArrSize "=" ArrInitVal
 InitVal         ::= Exp
+
+
+数组定义：
+ArrSize         ::= "[" ConstExp "]" ArrSizeList
+ArrSizeList     ::= "[" ConstExp "]" ArrSizeList | epsilon
+TODO
+CAIEle          ::= ConstExp | ConstArrVal
+ConstArrVal     ::= "{" "}" | "{" CAIEle ConstArrValList "}"
+ConstArrValList ::= "," CAIEle ConstArrValList | epsilon
+ArrInitVal      ::= "{" "}" | "{" Exp AInitValList "}"
+AInitValList    ::= "," Exp AInitValList | epsilon
 
 
 函数定义：
@@ -69,7 +84,7 @@ SimpleStmt      ::= LVal "=" Exp ";"
 
 运算：
 Exp             ::= LOrExp
-LVal            ::= IDENT
+LVal            ::= IDENT | IDENT "[" Exp "]"
 PrimaryExp      ::= "(" Exp ")" | LVal | Number
 Number          ::= INT_CONST
 UnaryExp        ::= PrimaryExp
@@ -115,6 +130,7 @@ class CompRootAST : public BaseAST {
 
 #pragma region CompUnitList
 // CompUnitList    ::= CompUnit CompUnitList | epsilon
+// 不进树
 class CompUnitListUnit : public BaseAST {
  public:
   vector<CompUnitAST*> comp_units;
@@ -187,10 +203,15 @@ class BTypeAST : public BaseAST {
 #pragma endregion
 
 #pragma region ConstDef
-// ConstDef      ::= IDENT "=" ConstInitVal;
+/*
+ConstDef        ::= IDENT "=" ConstInitVal
+                  | IDENT ArrSize "=" ConstArrVal
+*/
 class ConstDefAST : public BaseAST {
  public:
+  enum def_t { e_int, e_arr } ty;
   string var_name;
+  unique_ptr<BaseAST> arr_size;
   unique_ptr<BaseAST> const_init_val;
 
   void Print(ostream& os, int indent) const override;
@@ -237,11 +258,18 @@ class VarDeclListUnit : public BaseAST {
 #pragma endregion
 
 #pragma region VarDef
-// VarDef        ::= IDENT | IDENT "=" InitVal;
+/*
+VarDef          ::= IDENT
+                  | IDENT "=" InitVal
+                  | IDENT ArrSize
+                  | IDENT ArrSize "=" ArrInitVal
+*/
 class VarDefAST : public BaseAST {
  public:
   bool init_with_val;
+  enum def_t { e_int, e_arr } ty;
   string var_name;
+  unique_ptr<BaseAST> arr_size;
   unique_ptr<BaseAST> init_val;
 
   void Print(ostream& os, int indent) const override;
@@ -255,6 +283,79 @@ class InitValAST : public BaseAST {
  public:
   unique_ptr<BaseAST> exp;
   RetInfo thisRet;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+#pragma endregion
+
+#pragma region ArrSize
+// ArrSize         ::= "[" ConstExp "]" ArrSizeList
+class ArrSizeAST : public BaseAST {
+ public:
+  unique_ptr<BaseAST> arr_size;
+  vector<int> size_value;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+#pragma endregion
+
+#pragma region ArrSizeList
+class ConstExpAST;
+// ArrSizeList     ::= "[" ConstExp "]" ArrSizeList | epsilon
+class ArrSizeListUnit : public BaseAST {
+ public:
+  vector<ConstExpAST*> values;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+#pragma endregion
+
+#pragma region ConstArrVal
+// ConstArrVal ::= "{" "}" | "{" ConstExp ConstArrValList "}"
+class ConstArrValAST : public BaseAST {
+ public:
+  vector<unique_ptr<ConstExpAST>> values;
+  vector<RetInfo> init_values;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+#pragma endregion
+
+#pragma region ConstArrValList
+// ConstArrValList   ::= "," ConstExp ConstArrValList | epsilon
+// 不进树
+class ConstArrValListUnit : public BaseAST {
+ public:
+  vector<ConstExpAST*> values;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+#pragma endregion
+
+#pragma region ArrInitVal
+class ExpAST;
+// ArrInitVal      ::= "{" "}" | "{" Exp AInitValList "}"
+class ArrInitValAST : public BaseAST {
+ public:
+  vector<unique_ptr<ExpAST>> values;
+  vector<RetInfo> init_values;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+#pragma endregion
+
+#pragma region AInitValList
+// AInitValList    ::= "," Exp AInitValList | epsilon
+// 不进树
+class AInitValListUnit : public BaseAST {
+ public:
+  vector<ExpAST*> values;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
@@ -289,6 +390,7 @@ class FuncFParamsAST : public BaseAST {
 
 #pragma region FuncFParamsList
 // FuncFParamsList       ::= "," FuncFParam FuncFParamsList | epsilon
+// 不进树
 class FuncFParamsListUnit : public BaseAST {
  public:
   vector<FuncFParamAST*> params;
@@ -312,7 +414,7 @@ class FuncFParamAST : public BaseAST {
 
 #pragma region Block
 class BlockItemAST;
-// Block           ::= "{" BlockItem BlockList "}";
+// Block           ::= "{" BlockItem BlockList "}"
 class BlockAST : public BaseAST {
  public:
   vector<unique_ptr<BlockItemAST>> block_items;
@@ -336,7 +438,7 @@ class BlockListUnit : public BaseAST {
 #pragma endregion
 
 #pragma region BlockItem
-// BlockItem     ::= Decl | Stmt;
+// BlockItem     ::= Decl | Stmt
 class BlockItemAST : public BaseAST {
  public:
   enum blocktype_t { decl, stmt };
@@ -418,7 +520,7 @@ class SimpleStmtAST : public BaseAST {
 #pragma endregion
 
 #pragma region Exp
-// Exp         ::= LOrExp;
+// Exp         ::= LOrExp
 class ExpAST : public BaseAST {
  public:
   unique_ptr<BaseAST> loexp;
@@ -430,9 +532,11 @@ class ExpAST : public BaseAST {
 #pragma endregion
 
 #pragma region Lval
-// LVal          ::= IDENT;
+// LVal            ::= IDENT | IDENT "[" Exp "]"
 class LValAST : public BaseAST {
  public:
+  enum lval_t { e_int, e_arr } ty;
+  unique_ptr<BaseAST> arr_param;
   string var_name;
   RetInfo thisRet;
 
@@ -442,7 +546,7 @@ class LValAST : public BaseAST {
 #pragma endregion
 
 #pragma region PrimaryExp
-// PrimaryExp    ::= "(" Exp ")" | LVal | Number;
+// PrimaryExp    ::= "(" Exp ")" | LVal | Number
 class PrimaryExpAST : public BaseAST {
  public:
   enum primary_exp_type_t { Brackets, LVal, Number };
@@ -459,7 +563,7 @@ class PrimaryExpAST : public BaseAST {
 #pragma endregion
 
 #pragma region Number
-// Number      ::= INT_CONST;
+// Number      ::= INT_CONST
 class NumberAST : public BaseAST {
  public:
   int int_const;
@@ -510,6 +614,7 @@ class FuncRParamsAST : public BaseAST {
 
 #pragma region FuncRParamsList
 // FuncRParamsList ::= "," Exp FuncRParamsList | epsilon
+// 不进树
 class FuncRParamsListUnit : public BaseAST {
  public:
   vector<ExpAST*> params;

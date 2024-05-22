@@ -54,6 +54,259 @@ LoopInfo::LoopInfo() {}
 
 #pragma endregion
 
+#pragma region STE
+
+SymbolTableEntry::SymbolTableEntry()
+    : symbol_type(SymbolType::e_unused), var_type(VarType::e_unused), id(-1) {}
+
+const string SymbolTableEntry::GetAllocName() const {
+  return "@" + var_name + '_' + std::to_string(id);
+}
+
+const string SymbolTableEntry::GetAllocInst() const {
+  assert(symbol_type == SymbolType::e_var);
+  if (var_type == VarType::e_int) {
+    // int
+    // @x = alloc i32
+    stringstream ss;
+    ss << GetAllocName() << " = alloc i32";
+    return ss.str();
+  } else {
+    cerr << "[NOT SUPPORTED]" << endl;
+    assert(false);
+    return "";
+  }
+}
+
+const string SymbolTableEntry::GetLoadInst(
+    const string& loadToSymbolName) const {
+  assert(symbol_type == SymbolType::e_var);
+  if (var_type == VarType::e_int) {
+    // int
+    // %0 = load @x
+    stringstream ss;
+    ss << loadToSymbolName << " = load " << GetAllocName();
+    return ss.str();
+  } else {
+    cerr << "[NOT SUPPORTED]" << endl;
+    assert(false);
+    return "";
+  }
+}
+
+const string SymbolTableEntry::GetStoreInst(
+    const string& storeFromSymbolName) const {
+  assert(symbol_type == SymbolType::e_var);
+  if (var_type == VarType::e_int) {
+    // int
+    // store %0, @x
+    stringstream ss;
+    ss << "store " << storeFromSymbolName << ", " << GetAllocName();
+    return ss.str();
+  } else {
+    cerr << "[NOT SUPPORTED]" << endl;
+    assert(false);
+    return "";
+  }
+}
+
+const string SymbolTableEntry::GetStoreInst(const int& imm) const {
+  // (symbolType == SymbolType::VAR);
+  if (var_type == VarType::e_int) {
+    // int
+    // store 0, @x
+    stringstream ss;
+    ss << "store " << imm << ", " << GetAllocName();
+    return ss.str();
+  } else {
+    cerr << "[NOT SUPPORTED]" << endl;
+    assert(false);
+    return "";
+  }
+}
+
+#pragma endregion
+
+#pragma region Symbol Table
+
+SymbolTable::SymbolTable() : table(), parent(nullptr) {}
+
+bool SymbolTable::TryGetEntry(string symbol_name, SymbolTableEntry& out) const {
+  if (table.find(symbol_name) != table.end()) {
+    out = table.at(symbol_name);
+    return true;
+  }
+  return false;
+}
+
+void SymbolTable::InsertEntry(const SymbolTableEntry& entry) {
+  if (table.find(entry.var_name) != table.end()) {
+    cerr << "Symbol Table insert error: symbol with name \"" << entry.var_name
+         << "\" has already inserted in the table. It will be overwritten by "
+            "default"
+         << endl;
+    table[entry.var_name] = entry;
+    return;
+  }
+  // do actual insert
+  table.emplace(entry.var_name, entry);
+}
+
+void SymbolTable::ClearTable() {
+  table.clear();
+}
+
+#pragma endregion
+
+#pragma region BaseProcessor
+
+BaseProcessor::BaseProcessor() : _enable(false) {}
+
+void BaseProcessor::Enable() {
+  _enable = true;
+}
+
+void BaseProcessor::Disable() {
+  _enable = false;
+}
+
+const bool& BaseProcessor::IsEnabled() {
+  return _enable;
+}
+
+#pragma endregion
+
+#pragma region DeclaimProcessor
+
+DeclaimProcessor::DeclaimProcessor()
+    : BaseProcessor(),
+      current_symbol_type(SymbolType::e_unused),
+      current_var_type(VarType::e_unused) {}
+
+void DeclaimProcessor::SetSymbolType(const SymbolType& type) {
+  assert(IsEnabled());
+  current_symbol_type = type;
+}
+
+void DeclaimProcessor::SetVarType(const VarType& type) {
+  assert(IsEnabled());
+  current_var_type = type;
+}
+
+void DeclaimProcessor::Reset() {
+  current_symbol_type = SymbolType::e_unused;
+  current_var_type = VarType::e_unused;
+}
+
+SymbolTableEntry DeclaimProcessor::GenerateConstEntry(const string& var_name,
+                                                      const int& value) {
+  assert(IsEnabled() && current_symbol_type == SymbolType::e_const &&
+         current_var_type != VarType::e_unused);
+  SymbolTableEntry ste;
+  ste.symbol_type = SymbolType::e_const;
+  ste.var_type = VarType::e_int;
+  ste.var_name = var_name;
+  ste.const_value = value;
+  ste.id = RegisterVar();
+  return ste;
+}
+
+SymbolTableEntry DeclaimProcessor::GenerateArrEntry(const string& var_name,
+                                                    const ArrInfo& info) {
+  SymbolTableEntry ste;
+  ste.symbol_type = SymbolType::e_const;
+  ste.var_type = VarType::e_arr;
+  ste.var_name = var_name;
+  ste.arr_info = info;
+  ste.id = RegisterVar();
+  return ste;
+}
+
+SymbolTableEntry DeclaimProcessor::GenerateVarEntry(const string& var_name,
+                                                    const VarType& var_ty) {
+  assert(IsEnabled() && current_symbol_type != SymbolType::e_unused &&
+         current_var_type != VarType::e_unused);
+  SymbolTableEntry ste;
+  ste.symbol_type = SymbolType::e_var;
+  ste.var_type = VarType::e_int;
+  ste.var_name = var_name;
+  ste.id = RegisterVar();
+  return ste;
+}
+
+SymbolTableEntry DeclaimProcessor::QuickGenEntry(const SymbolType& st,
+                                                 const VarType& vt,
+                                                 string name) {
+  SymbolTableEntry ste;
+  ste.symbol_type = st;
+  ste.var_type = vt;
+  ste.var_name = name;
+  ste.id = RegisterVar();
+  return ste;
+}
+
+const SymbolType DeclaimProcessor::getCurSymType() const {
+  return current_symbol_type;
+}
+
+const VarType DeclaimProcessor::getCurVarType() const {
+  return current_var_type;
+}
+
+const int DeclaimProcessor::RegisterVar() {
+  return var_pool++;
+}
+
+#pragma endregion
+
+#pragma region Assignment
+
+AssignmentProcessor::AssignmentProcessor() : BaseProcessor() {}
+
+void AssignmentProcessor::WriteAssign(const RetInfo& value) const {
+  auto& gen = IRGenerator::getInstance();
+  if (current_var.var_type == VarType::e_int) {
+    gen.WriteStoreInst(value, current_var);
+  } else if (current_var.var_type == VarType::e_arr) {
+    gen.WriteStoreArrInst(current_var, value, arr_addr);
+  }
+}
+
+#pragma endregion
+
+SymbolManager::SymbolManager() : dproc(), aproc(), RootTable() {
+  currentTable = &RootTable;
+}
+
+const SymbolTableEntry SymbolManager::getEntry(string symbol_name) {
+  SymbolTableEntry entry;
+  SymbolTable* search = currentTable;
+  while (search != nullptr) {
+    if (search->TryGetEntry(symbol_name, entry))
+      return entry;
+    search = search->parent;
+  }
+  cerr << "SymbolManager: don't find symbol with name " << symbol_name << endl;
+  assert(false);
+  return SymbolTableEntry();
+}
+
+void SymbolManager::InsertEntry(SymbolTableEntry entry) {
+  currentTable->InsertEntry(entry);
+}
+
+void SymbolManager::PushScope() {
+  SymbolTable* tmp = new SymbolTable();
+  tmp->parent = currentTable;
+  currentTable = tmp;
+}
+
+void SymbolManager::PopScope() {
+  SymbolTable* tmp = currentTable;
+  currentTable = currentTable->parent;
+  delete tmp;
+}
+
 #pragma region Branch
 
 BranchManager::BranchManager() : hasRetThisBB(false), bbPool(0), loopStack() {}
@@ -104,8 +357,8 @@ void FuncManager::WriteFuncPrologue() {
 
   os << "fun @" << func_name << "(";
   WriteParamsDefine();
-  os << ") " << (ret_ty == VarType::e_void ? "" : ":")                // 格式
-     << GetVarType(ret_ty) << (ret_ty == VarType::e_void ? "" : " ")  // 格式
+  os << ")" << (ret_ty == VarType::e_void ? "" : ": ")  // 格式
+     << GetVarType(ret_ty) << " "                       // 格式
      << "{\n"
      << setting.getIndentStr()
      << "%"
@@ -136,8 +389,10 @@ const int FuncManager::registerNewSymbol() {
 }
 
 void FuncManager::InsertParam(VarType ty, string name) {
+  auto& gen = IRGenerator::getInstance();
   assert(ty == VarType::e_int);
-  params.push_back(SymbolTableEntry(SymbolType::e_var, ty, name, -1));
+  params.push_back(
+      gen.symbolCore.dproc.QuickGenEntry(SymbolType::e_var, ty, name));
 }
 
 void FuncManager::WriteParamsDefine() {
@@ -208,8 +463,6 @@ const string FuncManager::getParamVarName(const string& name) const {
 }
 #pragma endregion
 
-#pragma region IRGen - Class
-
 IRGenerator::IRGenerator() : symbolCore(), branchCore(), funcCore() {
   setting.setOs(cout).setIndent(0);
 }
@@ -219,9 +472,7 @@ IRGenerator& IRGenerator::getInstance() {
   return gen;
 }
 
-#pragma endregion
-
-#pragma region IRGen - lv3
+#pragma region lv3
 
 void IRGenerator::WriteFuncPrologue() {
   funcCore.WriteFuncPrologue();
@@ -277,7 +528,7 @@ const RetInfo IRGenerator::WriteLogicInst(const RetInfo& left,
 
 #pragma endregion
 
-#pragma region IRGen - lv4
+#pragma region lv4
 
 void IRGenerator::WriteAllocInst(const SymbolTableEntry& entry) {
   ostream& os = setting.getOs();
@@ -307,7 +558,7 @@ void IRGenerator::WriteStoreInst(const RetInfo& value,
 
 #pragma endregion
 
-#pragma region IRGen - lv6
+#pragma region lv6
 
 void IRGenerator::WriteBasicBlockPrologue(const int& bb_id) {
   ostream& os = getInstance().setting.getOs();
@@ -443,6 +694,104 @@ void IRGenerator::WriteGlobalVar(const SymbolTableEntry& entry,
   } else {
     os << init.GetValue() << endl;
   }
+}
+
+#pragma endregion
+
+#pragma region lv9
+
+void IRGenerator::WriteGlobalArrVar(const SymbolTableEntry& entry,
+                                    const vector<RetInfo>& init) {
+  assert(entry.var_type == VarType::e_arr);
+  // 暂时只能处理一维数组
+  assert(entry.arr_info.dimension == 1);
+  // TODO
+
+  auto& os = setting.getOs();
+  // 定义
+  os << "global " << entry.GetAllocName() << " = alloc "
+     << entry.arr_info.GetType() << ", ";
+  // 初始化
+  int init_len = init.size();
+  if (init_len == 0) {
+    // 使用zeroinit
+    os << "zeroinit" << endl;
+  } else {
+    // 使用聚合init
+    os << "{" << init[0].GetInfo();
+    for (int i = 1; i < entry.arr_info.shape[0]; i++) {
+      if (i < init_len) {
+        os << ", " << init[i].GetInfo();
+      } else {
+        // 使用零初始化
+        os << ", 0";
+      }
+    }
+    os << "}" << endl;
+  }
+}
+
+void IRGenerator::WriteAllocInst(const SymbolTableEntry& entry,
+                                 const bool& has_init,
+                                 const vector<RetInfo>& init) {
+  assert(entry.var_type == VarType::e_arr);
+  // TODO
+  // 暂时只能处理一维数组
+  assert(entry.arr_info.dimension == 1);
+
+  auto& os = setting.getOs();
+  const string indent = setting.getIndentStr();
+
+  // 定义
+  os << indent << entry.GetAllocName() << " = alloc "
+     << entry.arr_info.GetType() << endl;
+
+  // 初始化
+  int init_len = init.size();
+  if (!has_init) {
+    // 不初始化
+  } else {
+    for (int i = 0; i < entry.arr_info.shape[0]; i++) {
+      const string newSymbolName = getSymbolName(funcCore.registerNewSymbol());
+      // 选择零初始化或者给定值
+      WriteGetelemptrInst(newSymbolName, entry.GetAllocName(), RetInfo(i));
+      os << indent << "store " << (i < init_len ? init[i].GetInfo() : "0")
+         << ", " << newSymbolName << endl;
+    }
+  }
+}
+
+void IRGenerator::WriteGetelemptrInst(const string& symbol,
+                                      const string& arr_var,
+                                      const RetInfo& addr) const {
+  auto& os = setting.getOs();
+  const string indent = setting.getIndentStr();
+  os << indent << symbol << " = getelemptr " << arr_var << ", "
+     << addr.GetInfo() << endl;
+}
+
+const RetInfo IRGenerator::WriteLoadArrInst(const SymbolTableEntry& entry,
+                                            const RetInfo& addr) {
+  auto& os = setting.getOs();
+  const string tmp_addr = getSymbolName(funcCore.registerNewSymbol());
+  WriteGetelemptrInst(tmp_addr, entry.GetAllocName(), addr);
+
+  const string ret = getSymbolName(funcCore.registerNewSymbol());
+  os << setting.getIndentStr() << ret << " = load " << tmp_addr << endl;
+  return RetInfo(ret);
+}
+
+void IRGenerator::WriteStoreArrInst(const SymbolTableEntry& entry,
+                                    const RetInfo& value,
+                                    const RetInfo& addr) {
+  auto& os = setting.getOs();
+  const string tmp_addr = getSymbolName(funcCore.registerNewSymbol());
+  WriteGetelemptrInst(tmp_addr, entry.GetAllocName(), addr);
+
+  const string ret = getSymbolName(funcCore.registerNewSymbol());
+  os << setting.getIndentStr() << "store " << value.GetInfo() << ", "
+     << tmp_addr << endl;
+  return;
 }
 
 const int IRGenerator::registerNewVar() {

@@ -2,6 +2,18 @@
 
 namespace ir {
 
+ArrInfo::ArrInfo() : dimension(0), shape() {}
+
+ArrInfo::ArrInfo(const int& dim, const vector<int>& _shape)
+    : dimension(dim), shape(_shape) {}
+
+const string ArrInfo::GetType() const {
+  // TODO：多维扩展
+  stringstream ss;
+  ss << "[i32, " << shape[0] << "]";
+  return ss.str();
+}
+
 string BiOp2koopa(OpID id) {
   const char* s;
   switch (id) {

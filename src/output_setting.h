@@ -16,6 +16,6 @@ struct GenSettings {
   GenSettings& setOs(ostream& o);
   GenSettings& setIndent(int val);
   int& getIndent();
-  ostream& getOs();
-  const string getIndentStr();
+  ostream& getOs() const;
+  const string getIndentStr() const;
 };
