@@ -54,6 +54,59 @@ LoopInfo::LoopInfo() {}
 
 #pragma endregion
 
+#pragma region ArrInfo
+
+ArrInfo::ArrInfo() : shape(), size(0) {}
+
+ArrInfo::ArrInfo(const vector<int>& _shape) : shape(_shape) {
+  size = 1;
+  for (const int& i : shape) {
+    size *= i;
+  }
+}
+
+const string ArrInfo::GetType() const {
+  // int a[4][3]: [[i32, 3], 4]
+  stringstream ss;
+  int dim = Dim();
+  for (int i = 0; i < dim; i++) {
+    ss << "[";
+  }
+  ss << "i32, " << shape[dim - 1] << "]";
+  for (int i = dim - 2; i > -1; i--) {
+    ss << ", " << shape[i] << "]";
+  }
+  return ss.str();
+}
+
+const int ArrInfo::Dim() const {
+  return shape.size();
+}
+
+const int ArrInfo::GetSize() const {
+  return size;
+}
+
+ArrInfo ArrInfo::GetFrag(const int& begin, const int& end) const {
+  vector<int> frag;
+  frag.assign(shape.begin() + begin, shape.begin() + end);
+  return ArrInfo(frag);
+}
+
+#pragma endregion
+
+#pragma region arr init
+
+ArrInitNode::ArrInitNode() : ty(e_value), value(), nodes(), parent(nullptr) {}
+
+ArrInitNode::ArrInitNode(const RetInfo& val)
+    : ty(e_value), value(val), nodes(), parent(nullptr) {}
+
+ArrInitNode::ArrInitNode(const node_t& type)
+    : ty(type), value(), nodes(), parent(nullptr) {}
+
+#pragma endregion
+
 #pragma region STE
 
 SymbolTableEntry::SymbolTableEntry()
@@ -463,7 +516,134 @@ const string FuncManager::getParamVarName(const string& name) const {
 }
 #pragma endregion
 
-IRGenerator::IRGenerator() : symbolCore(), branchCore(), funcCore() {
+#pragma region arr init
+
+ArrInitManager::ArrInitManager()
+    : root(ArrInitNode::node_t::e_arr), current(&root), should_insert(false) {}
+
+void ArrInitManager::PushInfo(const RetInfo& info) {
+  ArrInitNode val(info);
+  val.parent = current;
+  current->nodes.push_back(val);
+}
+
+void ArrInitManager::PushArr() {
+  ArrInitNode arr(ArrInitNode::node_t::e_arr);
+  arr.parent = current;
+  current->nodes.push_back(arr);
+  current = &(current->nodes[current->nodes.size() - 1]);
+}
+
+void ArrInitManager::PopArr() {
+  current = current->parent;
+}
+
+void ArrInitManager::Clear() {
+  root = ArrInitNode(ArrInitNode::node_t::e_arr);
+  current = &root;
+  should_insert = false;
+}
+
+const vector<RetInfo> ArrInitManager::GetInits(const ArrInfo& shape) {
+  vector<RetInfo> ret;
+  RecursionGetInits(root, shape, ret);
+  return ret;
+}
+
+void ArrInitManager::GetInitString(const ArrInfo& arr,
+                                   const vector<RetInfo>& inits,
+                                   stringstream& output) {
+  int dim = arr.Dim();
+  if (dim == 1) {
+    // 1d
+    // int a[3] = {1,2,3}
+    output << '{';
+    for (int i = 0; i < arr.shape[0]; i++) {
+      if (i != 0)
+        output << ", ";
+      output << inits[i].GetInfo();
+    }
+    output << '}';
+  } else {
+    // nd
+    // int a[3][2][2] = {{{0,0},{0,0}},{{0,0},{0,0}},{{0,0},{0,0}}}
+    output << '{';
+
+    ArrInfo new_info = arr.GetFrag(1, dim);
+    vector<RetInfo> new_inits;
+    for (int i = 0; i < arr.shape[0]; i++) {
+      if (i != 0)
+        output << ", ";
+      // 截取数据
+      auto begin = inits.begin() + i * new_info.GetSize();
+      auto end = begin + new_info.GetSize();
+      new_inits.assign(begin, end);
+      GetInitString(new_info, new_inits, output);
+    }
+    output << '}';
+  }
+}
+
+void ArrInitManager::RecursionGetInits(const ArrInitNode& node,
+                                       const ArrInfo& arr,
+                                       vector<RetInfo>& appendto) {
+  // 记录这个shape中已经初始化的元素个数
+  int has_inited = 0;
+  // 记录数组dim
+  // shape = (len 1, len 2, len 3, ..., len n)
+  int dim = arr.Dim();
+  // 这个数组应该初始化的元素数
+  int should_init = arr.GetSize();
+
+  // 初始化这个子数组中的所有元素
+  for (auto n : node.nodes) {
+    if (n.ty == ArrInitNode::e_value) {
+      // 元素：视为最底层
+      appendto.push_back(RetInfo(n.value));
+      has_inited++;
+
+    } else if (n.ty == ArrInitNode::e_arr) {
+      // 数组
+
+      // 计算当前对齐到的最长的边界
+      // 考虑形如 {{1}, 2}：1对齐值为0，对齐到len 2处
+      // 最长边界计算上界为len 2, i > 0
+      int align = 1;
+      int i = dim - 1;
+
+      // 当前已经填充完毕的元素的个数必须是len n的整数倍
+      assert(has_inited % arr.shape[i] == 0);
+      for (; i > 0; i--) {
+        align *= arr.shape[i];
+        if (has_inited % align != 0) {
+          break;
+        }
+      }
+
+      // 恢复到对齐的最长边界; 自然退出时i = 0, 也要+1
+      i++;
+
+      // 计算这个子数组的新shape: 从i到dim
+      ArrInfo fragment = arr.GetFrag(i, dim);
+
+      // 处理这个数组
+      RecursionGetInits(n, fragment, appendto);
+      // 已处理元素个数累加上数组元素个数
+      has_inited += fragment.GetSize();
+    }
+  }
+
+  // 给数组补零
+  while (has_inited < should_init) {
+    appendto.push_back(RetInfo(0));
+    has_inited++;
+  }
+}
+
+#pragma endregion
+
+IRGenerator::IRGenerator()
+    : symbolCore(), branchCore(), funcCore(), arrinitCore() {
   setting.setOs(cout).setIndent(0);
 }
 
@@ -700,14 +880,12 @@ void IRGenerator::WriteGlobalVar(const SymbolTableEntry& entry,
 
 #pragma region lv9
 
-void IRGenerator::WriteGlobalArrVar(const SymbolTableEntry& entry,
-                                    const vector<RetInfo>& init) {
+void IRGenerator::WriteGlobalArrVar(const SymbolTableEntry& entry) {
   assert(entry.var_type == VarType::e_arr);
-  // 暂时只能处理一维数组
-  assert(entry.arr_info.dimension == 1);
-  // TODO
 
   auto& os = setting.getOs();
+  auto init = arrinitCore.GetInits(entry.arr_info);
+
   // 定义
   os << "global " << entry.GetAllocName() << " = alloc "
      << entry.arr_info.GetType() << ", ";
@@ -717,80 +895,117 @@ void IRGenerator::WriteGlobalArrVar(const SymbolTableEntry& entry,
     // 使用zeroinit
     os << "zeroinit" << endl;
   } else {
-    // 使用聚合init
-    os << "{" << init[0].GetInfo();
-    for (int i = 1; i < entry.arr_info.shape[0]; i++) {
-      if (i < init_len) {
-        os << ", " << init[i].GetInfo();
-      } else {
-        // 使用零初始化
-        os << ", 0";
-      }
-    }
-    os << "}" << endl;
+    stringstream ss;
+    arrinitCore.GetInitString(entry.arr_info, init, ss);
+    os << ss.str() << endl;
   }
+
+  arrinitCore.Clear();
 }
 
-void IRGenerator::WriteAllocInst(const SymbolTableEntry& entry,
-                                 const bool& has_init,
-                                 const vector<RetInfo>& init) {
+void IRGenerator::WriteAllocArrInst(const SymbolTableEntry& entry,
+                                    const bool& has_init) {
   assert(entry.var_type == VarType::e_arr);
-  // TODO
-  // 暂时只能处理一维数组
-  assert(entry.arr_info.dimension == 1);
 
-  auto& os = setting.getOs();
   const string indent = setting.getIndentStr();
+  auto& os = setting.getOs();
+  auto init = arrinitCore.GetInits(entry.arr_info);
+  int size = entry.arr_info.GetSize();
 
   // 定义
   os << indent << entry.GetAllocName() << " = alloc "
      << entry.arr_info.GetType() << endl;
 
-  // 初始化
-  int init_len = init.size();
   if (!has_init) {
     // 不初始化
   } else {
-    for (int i = 0; i < entry.arr_info.shape[0]; i++) {
-      const string newSymbolName = getSymbolName(funcCore.registerNewSymbol());
-      // 选择零初始化或者给定值
-      WriteGetelemptrInst(newSymbolName, entry.GetAllocName(), RetInfo(i));
-      os << indent << "store " << (i < init_len ? init[i].GetInfo() : "0")
-         << ", " << newSymbolName << endl;
+    // 动态地址
+    int dim = entry.arr_info.Dim();
+    vector<int> cur_addr(dim);
+
+    for (int i = 0; i < size; i++) {
+      const string addr_1 =
+          WriteGetPtrFromArrInt(entry.GetAllocName(), cur_addr);
+
+      os << indent << "store " << init[i].GetInfo() << ", " << addr_1 << endl;
+
+      // 更新地址
+      int j = dim - 1;
+      cur_addr[j]++;
+      // 不用检查第一维
+      for (; j > 0; j--) {
+        if (cur_addr[j] >= entry.arr_info.shape[j]) {
+          cur_addr[j - 1]++;
+          cur_addr[j] -= entry.arr_info.shape[j];
+        } else {
+          // 一次不满足就直接跳出
+          break;
+        }
+      }
     }
   }
+
+  arrinitCore.Clear();
 }
 
 void IRGenerator::WriteGetelemptrInst(const string& symbol,
                                       const string& arr_var,
-                                      const RetInfo& addr) const {
+                                      const string& addr) const {
   auto& os = setting.getOs();
   const string indent = setting.getIndentStr();
-  os << indent << symbol << " = getelemptr " << arr_var << ", "
-     << addr.GetInfo() << endl;
+  os << indent << symbol << " = getelemptr " << arr_var << ", " << addr << endl;
+}
+
+const string IRGenerator::WriteGetPtrFromArr(const string& arr_var,
+                                             const vector<RetInfo>& addr) {
+  string addr_1 = getSymbolName(funcCore.registerNewSymbol());
+  string addr_2 = arr_var;
+
+  int len = addr.size();
+  for (int i = 0; i < len; i++) {
+    WriteGetelemptrInst(addr_1, addr_2, addr[i].GetInfo());
+    addr_2 = addr_1;
+    if (i != len - 1)
+      addr_1 = getSymbolName(funcCore.registerNewSymbol());
+  }
+  return addr_1;
+}
+
+const string IRGenerator::WriteGetPtrFromArrInt(const string& arr_var,
+                                                const vector<int>& addr) {
+  string addr_1 = getSymbolName(funcCore.registerNewSymbol());
+  string addr_2 = arr_var;
+  int len = addr.size();
+  for (int i = 0; i < len; i++) {
+    WriteGetelemptrInst(addr_1, addr_2, to_string(addr[i]));
+    addr_2 = addr_1;
+    if (i != len - 1)
+      addr_1 = getSymbolName(funcCore.registerNewSymbol());
+  }
+  return addr_2;
 }
 
 const RetInfo IRGenerator::WriteLoadArrInst(const SymbolTableEntry& entry,
-                                            const RetInfo& addr) {
+                                            const vector<RetInfo>& addr) {
   auto& os = setting.getOs();
-  const string tmp_addr = getSymbolName(funcCore.registerNewSymbol());
-  WriteGetelemptrInst(tmp_addr, entry.GetAllocName(), addr);
+
+  const string addr_1 = WriteGetPtrFromArr(entry.GetAllocName(), addr);
 
   const string ret = getSymbolName(funcCore.registerNewSymbol());
-  os << setting.getIndentStr() << ret << " = load " << tmp_addr << endl;
+  os << setting.getIndentStr() << ret << " = load " << addr_1 << endl;
   return RetInfo(ret);
 }
 
 void IRGenerator::WriteStoreArrInst(const SymbolTableEntry& entry,
                                     const RetInfo& value,
-                                    const RetInfo& addr) {
+                                    const vector<RetInfo>& addr) {
   auto& os = setting.getOs();
-  const string tmp_addr = getSymbolName(funcCore.registerNewSymbol());
-  WriteGetelemptrInst(tmp_addr, entry.GetAllocName(), addr);
+
+  const string addr_1 = WriteGetPtrFromArr(entry.GetAllocName(), addr);
 
   const string ret = getSymbolName(funcCore.registerNewSymbol());
-  os << setting.getIndentStr() << "store " << value.GetInfo() << ", "
-     << tmp_addr << endl;
+  os << setting.getIndentStr() << "store " << value.GetInfo() << ", " << addr_1
+     << endl;
   return;
 }
 
@@ -800,7 +1015,7 @@ const int IRGenerator::registerNewVar() {
 
 #pragma endregion
 
-#pragma region IRGen - private
+#pragma region private
 
 const string IRGenerator::getSymbolName(const int& symbol) const {
   return string("%") + to_string(symbol);

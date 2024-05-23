@@ -175,24 +175,25 @@ void ConstDefAST::Dump() {
   }
 
   else if (ty == e_arr) {
-    // 计算常数数组表达式
-    const_init_val->Dump();
+    // arr
     arr_size->Dump();
-    auto ptr = dynamic_cast<ConstArrValAST*>(const_init_val.get());
     auto& size = dynamic_cast<ArrSizeAST*>(arr_size.get())->size_value;
 
-    ArrInfo info(1, size);
+    ArrInfo info(size);
 
     // 取值加入符号表
     auto entry = pcs.GenerateArrEntry(var_name, info);
     gen.symbolCore.InsertEntry(entry);
 
+    // 解析常数数组表达式
+    const_init_val->Dump();
+
     // 是全局变量
     if (pcs.global) {
-      gen.WriteGlobalArrVar(entry, ptr->init_values);
+      gen.WriteGlobalArrVar(entry);
     } else {
       // 是局部变量
-      gen.WriteAllocInst(entry, true, ptr->init_values);
+      gen.WriteAllocArrInst(entry, true);
     }
   }
 }
@@ -305,7 +306,9 @@ void VarDefAST::Dump() {
     // arr
     arr_size->Dump();
     auto& size = dynamic_cast<ArrSizeAST*>(arr_size.get())->size_value;
-    ArrInfo info(1, size);
+    ArrInfo info(size);
+
+    // 取值加入符号表
     auto entry = pcs.GenerateArrEntry(var_name, info);
     gen.symbolCore.InsertEntry(entry);
 
@@ -313,20 +316,19 @@ void VarDefAST::Dump() {
     // 空的初始化，在全局中被视为零，局部中视为不初始化
     // {}视为零初始化
     bool has_init = false;
-    vector<RetInfo> null_init;
-    auto& init_info = null_init;
+
     if (init_with_val) {
+      // 解析常数数组表达式
       init_val->Dump();
-      auto ptr = dynamic_cast<ArrInitValAST*>(init_val.get());
-      init_info = ptr->init_values;
       has_init = true;
     }
+
     // 是全局变量
     if (pcs.global) {
-      gen.WriteGlobalArrVar(entry, init_info);
+      gen.WriteGlobalArrVar(entry);
     } else {
       // 是局部变量
-      gen.WriteAllocInst(entry, has_init, init_info);
+      gen.WriteAllocArrInst(entry, has_init);
     }
   }
 }
@@ -358,16 +360,19 @@ void ArrSizeAST::Print(ostream& os, int indent) const {
   os << "ArrSizeAST: {" << endl;
   make_indent(os, indent + 1);
   os << "shape: " << endl;
-  arr_size->Print(os, indent + 1);
+  for (int i = 0; i < arr_size.size(); i++) {
+    arr_size[i]->Print(os, indent + 1);
+  }
   make_indent(os, indent);
   os << "}," << endl;
 }
 
 void ArrSizeAST::Dump() {
-  arr_size->Dump();
-  auto ptr = dynamic_cast<ConstExpAST*>(arr_size.get());
-  int dim0 = ptr->thisRet.GetValue();
-  size_value = {dim0};
+  for (int i = 0; i < arr_size.size(); i++) {
+    arr_size[i]->Dump();
+    auto ptr = dynamic_cast<ConstExpAST*>(arr_size[i].get());
+    size_value.push_back(ptr->thisRet.GetValue());
+  }
 }
 
 #pragma endregion
@@ -380,6 +385,32 @@ void ArrSizeListUnit::Print(ostream& os, int indent) const {
 
 void ArrSizeListUnit::Dump() {
   cerr << "[SHOULD NOT OUTPUT THIS]" << endl;
+}
+
+#pragma endregion
+
+#pragma region CAElement
+
+void CAElementAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "CAElementAST: {" << endl;
+  make_indent(os, indent + 1);
+  os << "type: " << (ty == e_cexp ? "ConstExp" : "ConstArrVal") << endl;
+  content->Print(os, indent + 1);
+  make_indent(os, indent);
+  os << "}," << endl;
+}
+
+void CAElementAST::Dump() {
+  auto& gen = IRGenerator::getInstance();
+  auto& arrinit = gen.arrinitCore;
+  if (ty == e_cexp) {
+    content->Dump();
+    auto ptr = dynamic_cast<ConstExpAST*>(content.get());
+    arrinit.PushInfo(ptr->thisRet);
+  } else if (ty == e_carr) {
+    content->Dump();
+  }
 }
 
 #pragma endregion
@@ -402,23 +433,67 @@ void ConstArrValAST::Print(ostream& os, int indent) const {
 }
 
 void ConstArrValAST::Dump() {
-  for (int i = 0; i < values.size(); i++) {
-    values[i]->Dump();
-    auto ptr = dynamic_cast<ConstExpAST*>(values[i].get());
-    init_values.push_back(ptr->thisRet);
+  int len = values.size();
+  // 如果只有一个元素且元素类型为arr，则不增加大括号
+  if (len == 1 && values[0]->ty == CAElementAST::e_carr) {
+    values[0]->Dump();
+  } else {
+    auto& gen = IRGenerator::getInstance();
+    auto& arrinit = gen.arrinitCore;
+
+    // 添加大括号
+    // 若为根则不添加大括号
+    bool insert = arrinit.should_insert;
+    arrinit.should_insert = true;
+
+    if (insert)
+      arrinit.PushArr();
+    // 遍历子项
+    for (int i = 0; i < len; i++) {
+      values[i]->Dump();
+    }
+    // 推出
+    if (insert)
+      arrinit.PopArr();
   }
 }
 
 #pragma endregion
 
-#pragma region ConstArrValList
+#pragma region CAElementList
 
-void ConstArrValListUnit::Print(ostream& os, int indent) const {
+void CAElementListUnit::Print(ostream& os, int indent) const {
   cerr << "[SHOULD NOT OUTPUT THIS]" << endl;
 }
 
-void ConstArrValListUnit::Dump() {
+void CAElementListUnit::Dump() {
   cerr << "[SHOULD NOT OUTPUT THIS]" << endl;
+}
+
+#pragma endregion
+
+#pragma region AIElement
+
+void AIElementAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "AIElementAST: {" << endl;
+  make_indent(os, indent + 1);
+  os << "type: " << (ty == e_exp ? "Exp" : "ArrInitVal") << endl;
+  content->Print(os, indent + 1);
+  make_indent(os, indent);
+  os << "}," << endl;
+}
+
+void AIElementAST::Dump() {
+  auto& gen = IRGenerator::getInstance();
+  auto& arrinit = gen.arrinitCore;
+  if (ty == e_exp) {
+    content->Dump();
+    auto ptr = dynamic_cast<ExpAST*>(content.get());
+    arrinit.PushInfo(ptr->thisRet);
+  } else if (ty == e_arr) {
+    content->Dump();
+  }
 }
 
 #pragma endregion
@@ -441,22 +516,44 @@ void ArrInitValAST::Print(ostream& os, int indent) const {
 }
 
 void ArrInitValAST::Dump() {
-  for (int i = 0; i < values.size(); i++) {
-    values[i]->Dump();
-    auto ptr = dynamic_cast<ExpAST*>(values[i].get());
-    init_values.push_back(ptr->thisRet);
+  int len = values.size();
+  // 如果只有一个元素且元素类型为arr，则不增加大括号
+  if (len == 1 && values[0]->ty == AIElementAST::e_arr) {
+    values[0]->Dump();
+  } else {
+    auto& gen = IRGenerator::getInstance();
+    auto& arrinit = gen.arrinitCore;
+
+    // 添加大括号
+    // 若为根则不添加大括号
+    bool insert = arrinit.should_insert;
+    arrinit.should_insert = true;
+
+    if (insert)
+      arrinit.PushArr();
+    // 遍历子项
+    for (int i = 0; i < len; i++) {
+      values[i]->Dump();
+    }
+    // 推出
+    if (insert)
+      arrinit.PopArr();
   }
 }
 
 #pragma endregion
 
-void AInitValListUnit::Print(ostream& os, int indent) const {
+#pragma region AIElementList
+
+void AIElementListUnit::Print(ostream& os, int indent) const {
   cerr << "[SHOULD NOT OUTPUT THIS]" << endl;
 }
 
-void AInitValListUnit::Dump() {
+void AIElementListUnit::Dump() {
   cerr << "[SHOULD NOT OUTPUT THIS]" << endl;
 }
+
+#pragma endregion
 
 #pragma region FuncDef
 
@@ -513,8 +610,7 @@ void FuncFParamsAST::Dump() {
   auto& gen = IRGenerator::getInstance();
   for (auto it = params.begin(); it != params.end(); it++) {
     (*it)->Dump();
-    gen.funcCore.InsertParam(gen.symbolCore.dproc.getCurVarType(),
-                             (*it)->param_name);
+    gen.funcCore.InsertParam(VarType::e_int, (*it)->param_name);
   }
 }
 
@@ -537,15 +633,14 @@ void FuncFParamsListUnit::Dump() {
 void FuncFParamAST::Print(ostream& os, int indent) const {
   make_indent(os, indent);
   os << "FuncFParamAST {" << endl;
-  ty->Print(os, indent + 1);
   make_indent(os, indent + 1);
   os << "param name: " << param_name << endl;
   make_indent(os, indent);
   os << "}," << endl;
 }
 
+// TODO
 void FuncFParamAST::Dump() {
-  ty->Dump();
   // 其他什么都不用做，变量类型自动记录，上层获取变量名
 }
 
@@ -964,6 +1059,42 @@ void ExpAST::Dump() {
 
 #pragma endregion
 
+#pragma region ArrAddr
+
+void ArrAddrAST::Print(ostream& os, int indent) const {
+  make_indent(os, indent);
+  os << "ArrAddrAST: {" << endl;
+  make_indent(os, indent + 1);
+  os << "addr: " << endl;
+  for (int i = 0; i < arr_addr.size(); i++) {
+    arr_addr[i]->Print(os, indent + 1);
+  }
+  make_indent(os, indent);
+  os << "}," << endl;
+}
+
+void ArrAddrAST::Dump() {
+  for (int i = 0; i < arr_addr.size(); i++) {
+    arr_addr[i]->Dump();
+    auto ptr = dynamic_cast<ExpAST*>(arr_addr[i].get());
+    addr_value.push_back(ptr->thisRet.GetInfo());
+  }
+}
+
+#pragma endregion
+
+#pragma region ArrAddrList
+
+void ArrAddrListUnit::Print(ostream& os, int indent) const {
+  cerr << "[SHOULD NOT OUTPUT THIS]" << endl;
+}
+
+void ArrAddrListUnit::Dump() {
+  cerr << "[SHOULD NOT OUTPUT THIS]" << endl;
+}
+
+#pragma endregion
+
 #pragma region LVal
 
 void LValAST::Print(ostream& os, int indent) const {
@@ -1012,7 +1143,7 @@ void LValAST::Dump() {
   } else if (entry.var_type == VarType::e_arr) {
     // arr
 
-    auto ptr = dynamic_cast<ExpAST*>(arr_param.get());
+    auto ptr = dynamic_cast<ArrAddrAST*>(arr_param.get());
 
     if (is_assigning) {
       // 左值，设置aproc处理当前符号
@@ -1021,7 +1152,7 @@ void LValAST::Dump() {
 
       // 解析数组参数
       arr_param->Dump();
-      const RetInfo addr = ptr->thisRet;
+      const auto addr = ptr->addr_value;
       aproc.arr_addr = addr;
     } else {
       // 右值，获取其临时符号
@@ -1029,7 +1160,7 @@ void LValAST::Dump() {
 
       // 解析数组参数
       arr_param->Dump();
-      const RetInfo addr = ptr->thisRet;
+      const auto addr = ptr->addr_value;
       thisRet = gen.WriteLoadArrInst(entry, addr);
     }
   }

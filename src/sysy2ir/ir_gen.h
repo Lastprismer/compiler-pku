@@ -49,6 +49,34 @@ struct LoopInfo {
   LoopInfo();
 };
 
+// 数组信息
+struct ArrInfo {
+  vector<int> shape;
+  int size;
+  ArrInfo();
+  ArrInfo(const vector<int>& _shape);
+  // 获取koopa变量类型名称，如[i32, 2]
+  const string GetType() const;
+  // shape.len()
+  const int Dim() const;
+  // 获取大小，shape累乘
+  const int GetSize() const;
+  // 截取一个新的shape
+  ArrInfo GetFrag(const int& begin, const int& end) const;
+};
+
+// 数组初始化多叉树节点
+struct ArrInitNode {
+  enum node_t { e_arr, e_value } ty;
+  RetInfo value;
+  vector<ArrInitNode> nodes;
+  ArrInitNode* parent;
+
+  ArrInitNode();
+  ArrInitNode(const RetInfo& val);
+  ArrInitNode(const node_t& type);
+};
+
 #pragma region symbol
 
 class SymbolManager;
@@ -136,7 +164,7 @@ class AssignmentProcessor : public BaseProcessor {
   // 保证在有值的时候才会用到
   SymbolTableEntry current_var;
   // 对数组变量赋值时的地址信息
-  RetInfo arr_addr;
+  vector<RetInfo> arr_addr;
 
   // 对存储变量赋值
   void WriteAssign(const RetInfo& value) const;
@@ -262,6 +290,41 @@ class FuncManager {
 
 #pragma endregion
 
+#pragma region ArrInit
+
+class ArrInitManager {
+ public:
+  ArrInitNode root;
+  ArrInitNode* current;
+
+  // dump中最外层大括号不用插入
+  bool should_insert;
+
+  ArrInitManager();
+  // 向当前指向的列表中推入一个值
+  void PushInfo(const RetInfo& info);
+  // 向当前指向列表中推入一个列表，并指向下层列表
+  void PushArr();
+  // 回到上级列表
+  void PopArr();
+  // 初始化
+  void Clear();
+  // 给定目标arrsize，输出初始化信息
+  const vector<RetInfo> GetInits(const ArrInfo& shape);
+  // 给定初始化信息和数组shape，输出格式化的大括号表达式
+  void GetInitString(const ArrInfo& shape,
+                     const vector<RetInfo>& inits,
+                     stringstream& output);
+
+ private:
+  // 递归处理：给定arr node和数组的size
+  void RecursionGetInits(const ArrInitNode& node,
+                         const ArrInfo& shape,
+                         vector<RetInfo>& appendto);
+};
+
+#pragma endregion
+
 class IRGenerator {
  private:
   IRGenerator();
@@ -276,6 +339,7 @@ class IRGenerator {
   SymbolManager symbolCore;
   BranchManager branchCore;
   FuncManager funcCore;
+  ArrInitManager arrinitCore;
 
 #pragma region lv3
 
@@ -348,29 +412,35 @@ class IRGenerator {
 
 #pragma region lv9
   // 生成全局数组变量定义
-  void WriteGlobalArrVar(const SymbolTableEntry& entry,
-                         const vector<RetInfo>& init);
+  void WriteGlobalArrVar(const SymbolTableEntry& entry);
 
   // 生成局部数组变量定义
-  void WriteAllocInst(const SymbolTableEntry& entry,
-                      const bool& has_init,
-                      const vector<RetInfo>& init);
+  void WriteAllocArrInst(const SymbolTableEntry& entry, const bool& has_init);
 
   // 生成getelemptr语句
   // 语法：{symbol} = getelemptr {arr_var}, {addr}
   // 行为：取出arr_var[addr]的地址存入symbol
   void WriteGetelemptrInst(const string& symbol,
                            const string& arr_var,
-                           const RetInfo& addr) const;
+                           const string& addr) const;
+
+  // 获取指向数组给定地址处的指针，并写下相关指令
+  const string WriteGetPtrFromArr(const string& arr_var,
+                                  const vector<RetInfo>& addr);
+
+  // 获取指向数组给定地址处的指针，并写下相关指令
+  // int版
+  const string WriteGetPtrFromArrInt(const string& arr_var,
+                                     const vector<int>& addr);
 
   // 生成从数组中load值的语句
   const RetInfo WriteLoadArrInst(const SymbolTableEntry& entry,
-                                 const RetInfo& addr);
+                                 const vector<RetInfo>& addr);
 
   // 生成向数组中store值的语句
   void WriteStoreArrInst(const SymbolTableEntry& entry,
                          const RetInfo& value,
-                         const RetInfo& addr);
+                         const vector<RetInfo>& addr);
 
  private:
   const int registerNewVar();

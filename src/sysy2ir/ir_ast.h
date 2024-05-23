@@ -40,12 +40,14 @@ InitVal         ::= Exp
 数组定义：
 ArrSize         ::= "[" ConstExp "]" ArrSizeList
 ArrSizeList     ::= "[" ConstExp "]" ArrSizeList | epsilon
-TODO
-CAIEle          ::= ConstExp | ConstArrVal
-ConstArrVal     ::= "{" "}" | "{" CAIEle ConstArrValList "}"
-ConstArrValList ::= "," CAIEle ConstArrValList | epsilon
-ArrInitVal      ::= "{" "}" | "{" Exp AInitValList "}"
-AInitValList    ::= "," Exp AInitValList | epsilon
+
+CAElement       ::= ConstExp | ConstArrVal
+ConstArrVal     ::= "{" "}" | "{" CAElement CAElementList "}"
+CAElementList   ::= "," CAElement CAElementList | epsilon
+
+AIElement       ::= Exp | ArrInitVal
+ArrInitVal      ::= "{" "}" | "{" AIElement AIElementList "}"
+AIElementList   ::= "," AIElement AIElementList | epsilon
 
 
 函数定义：
@@ -53,6 +55,8 @@ FuncDef         ::= BType IDENT "(" FuncFParams ")" Block
 FuncFParams     ::= FuncFParam FuncFParamsList | epsilon
 FuncFParamsList ::= "," FuncFParam FuncFParamsList | epsilon
 FuncFParam      ::= BType IDENT
+                  | BType IDENT "[" "]"
+                  | BType IDENT "[" "]" ArrSize
 
 语句：
 Block           ::= "{" BlockItem BlockList "}"
@@ -84,7 +88,11 @@ SimpleStmt      ::= LVal "=" Exp ";"
 
 运算：
 Exp             ::= LOrExp
-LVal            ::= IDENT | IDENT "[" Exp "]"
+
+ArrAddr         ::= "[" Exp "]" ArrAddrList
+ArrAddrList     ::= "[" Exp "]" ArrAddrList | epsilon
+LVal            ::= IDENT | IDENT ArrAddr
+
 PrimaryExp      ::= "(" Exp ")" | LVal | Number
 Number          ::= INT_CONST
 UnaryExp        ::= PrimaryExp
@@ -290,10 +298,11 @@ class InitValAST : public BaseAST {
 #pragma endregion
 
 #pragma region ArrSize
+class ConstExpAST;
 // ArrSize         ::= "[" ConstExp "]" ArrSizeList
 class ArrSizeAST : public BaseAST {
  public:
-  unique_ptr<BaseAST> arr_size;
+  vector<unique_ptr<ConstExpAST>> arr_size;
   vector<int> size_value;
 
   void Print(ostream& os, int indent) const override;
@@ -302,7 +311,6 @@ class ArrSizeAST : public BaseAST {
 #pragma endregion
 
 #pragma region ArrSizeList
-class ConstExpAST;
 // ArrSizeList     ::= "[" ConstExp "]" ArrSizeList | epsilon
 class ArrSizeListUnit : public BaseAST {
  public:
@@ -313,24 +321,48 @@ class ArrSizeListUnit : public BaseAST {
 };
 #pragma endregion
 
-#pragma region ConstArrVal
-// ConstArrVal ::= "{" "}" | "{" ConstExp ConstArrValList "}"
-class ConstArrValAST : public BaseAST {
+#pragma region CAElement
+// CAElement       ::= ConstExp | ConstArrVal
+class CAElementAST : public BaseAST {
  public:
-  vector<unique_ptr<ConstExpAST>> values;
-  vector<RetInfo> init_values;
+  enum caty_t { e_cexp, e_carr } ty;
+  unique_ptr<BaseAST> content;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
 };
 #pragma endregion
 
-#pragma region ConstArrValList
-// ConstArrValList   ::= "," ConstExp ConstArrValList | epsilon
-// 不进树
-class ConstArrValListUnit : public BaseAST {
+#pragma region ConstArrVal
+// ConstArrVal     ::= "{" "}" | "{" CAElement CAElementList "}"
+class ConstArrValAST : public BaseAST {
  public:
-  vector<ConstExpAST*> values;
+  vector<unique_ptr<CAElementAST>> values;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+#pragma endregion
+
+#pragma region CAElementList
+// CAElementList ::= "," CAElement CAElementList | epsilon
+// 不进树
+class CAElementListUnit : public BaseAST {
+ public:
+  vector<CAElementAST*> values;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+#pragma endregion
+
+#pragma region AIElement
+class ExpAST;
+// AIElement       ::= Exp | ArrInitVal
+class AIElementAST : public BaseAST {
+ public:
+  enum aity_t { e_exp, e_arr } ty;
+  unique_ptr<BaseAST> content;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
@@ -338,11 +370,10 @@ class ConstArrValListUnit : public BaseAST {
 #pragma endregion
 
 #pragma region ArrInitVal
-class ExpAST;
-// ArrInitVal      ::= "{" "}" | "{" Exp AInitValList "}"
+// ArrInitVal      ::= "{" "}" | "{" AIElement AIElementList "}"
 class ArrInitValAST : public BaseAST {
  public:
-  vector<unique_ptr<ExpAST>> values;
+  vector<unique_ptr<AIElementAST>> values;
   vector<RetInfo> init_values;
 
   void Print(ostream& os, int indent) const override;
@@ -350,12 +381,12 @@ class ArrInitValAST : public BaseAST {
 };
 #pragma endregion
 
-#pragma region AInitValList
-// AInitValList    ::= "," Exp AInitValList | epsilon
+#pragma region AIElementList
+// AIElementList   ::= "," AIElement AIElementList | epsilon
 // 不进树
-class AInitValListUnit : public BaseAST {
+class AIElementListUnit : public BaseAST {
  public:
-  vector<ExpAST*> values;
+  vector<AIElementAST*> values;
 
   void Print(ostream& os, int indent) const override;
   void Dump() override;
@@ -401,10 +432,15 @@ class FuncFParamsListUnit : public BaseAST {
 #pragma endregion
 
 #pragma region FuncFParam
-// FuncFParam      ::= BType IDENT
+/*
+FuncFParam      ::= BType IDENT
+                  | BType IDENT "[" "]"
+                  | BType IDENT "[" "]" ArrSize
+*/
 class FuncFParamAST : public BaseAST {
  public:
-  unique_ptr<BaseAST> ty;
+  unique_ptr<BaseAST> ptr_size;
+  bool is_ptr;
   string param_name;
 
   void Print(ostream& os, int indent) const override;
@@ -531,8 +567,32 @@ class ExpAST : public BaseAST {
 };
 #pragma endregion
 
+#pragma region ArrAddr
+class ConstExpAST;
+// ArrAddr         ::= "[" Exp "]" ArrAddrList
+class ArrAddrAST : public BaseAST {
+ public:
+  vector<unique_ptr<ExpAST>> arr_addr;
+  vector<RetInfo> addr_value;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+#pragma endregion
+
+#pragma region ArrAddrList
+// ArrAddrList     ::= "[" Exp "]" ArrAddrList | epsilon
+class ArrAddrListUnit : public BaseAST {
+ public:
+  vector<ExpAST*> addrs;
+
+  void Print(ostream& os, int indent) const override;
+  void Dump() override;
+};
+#pragma endregion
+
 #pragma region Lval
-// LVal            ::= IDENT | IDENT "[" Exp "]"
+// LVal            ::= IDENT | IDENT ArrAddr
 class LValAST : public BaseAST {
  public:
   enum lval_t { e_int, e_arr } ty;

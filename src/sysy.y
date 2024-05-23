@@ -57,7 +57,8 @@ using namespace std;
 // lv8 - func
 %type <ast_val> CompUnit CompUnitList FuncFParams FuncFParamsList FuncFParam FuncRParams FuncRParamsList
 // lv9 - arr
-%type <ast_val> ArrSize ConstArrVal ConstArrValList ArrInitVal AInitValList
+%type <ast_val> ArrSize ConstArrVal CAElementList ArrInitVal AIElementList
+%type <ast_val> ArrSizeList CAElement AIElement ArrAddr ArrAddrList
 
 %define parse.error verbose
 
@@ -272,73 +273,121 @@ InitVal
   }
   ;
 
-// ArrSize         ::= "[" ConstExp "]"
+// ArrSize         ::= "[" ConstExp "]" ArrSizeList
 ArrSize
-  : '[' ConstExp ']' {
+  : '[' ConstExp ']' ArrSizeList {
     auto ast = new ArrSizeAST();
-    ast->arr_size = unique_ptr<BaseAST>($2);
+    ast->arr_size.push_back(unique_ptr<ConstExpAST>(dynamic_cast<ConstExpAST*>($2)));
+    auto list = unique_ptr<ArrSizeListUnit>(dynamic_cast<ArrSizeListUnit*>($4));
+    // 插入剩余
+    for (auto it = list->values.rbegin(); it != list->values.rend(); ++it) {
+      ast->arr_size.push_back(unique_ptr<ConstExpAST>(*it));
+    }
     $$ = ast;
   }
   ;
 
-// ConstArrVal ::= "{" "}" | "{" ConstExp ConstArrValList "}"
+// ArrSizeList     ::= "[" ConstExp "]" ArrSizeList | epsilon
+ArrSizeList
+  : '[' ConstExp ']' ArrSizeList {
+    (dynamic_cast<ArrSizeListUnit*>($4))->values.push_back(dynamic_cast<ConstExpAST*>($2));
+    $$ = $4;
+  }
+  | {
+    auto ast = new ArrSizeListUnit();
+    $$ = ast;
+  }
+  ;
+
+// CAElement       ::= ConstExp | ConstArrVal
+CAElement
+  : ConstExp {
+    auto ast = new CAElementAST();
+    ast->ty = CAElementAST::caty_t::e_cexp;
+    ast->content = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | ConstArrVal {
+    auto ast = new CAElementAST();
+    ast->ty = CAElementAST::caty_t::e_carr;
+    ast->content = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  ;
+
+// ConstArrVal     ::= "{" "}" | "{" CAElement CAElementList "}"
 ConstArrVal
   : '{' '}' {
     auto ast = new ConstArrValAST();
     $$ = ast;
   }
-  | '{' ConstExp ConstArrValList '}' {
+  | '{' CAElement CAElementList '}' {
     auto ast = new ConstArrValAST();
     // 插入开头
-    ast->values.push_back(unique_ptr<ConstExpAST>(dynamic_cast<ConstExpAST*>($2)));
-    auto list = unique_ptr<ConstArrValListUnit>(dynamic_cast<ConstArrValListUnit*>($3));
+    ast->values.push_back(unique_ptr<CAElementAST>(dynamic_cast<CAElementAST*>($2)));
+    auto list = unique_ptr<CAElementListUnit>(dynamic_cast<CAElementListUnit*>($3));
     // 插入剩余
     for (auto it = list->values.rbegin(); it != list->values.rend(); ++it) {
-      ast->values.push_back(unique_ptr<ConstExpAST>(*it));
+      ast->values.push_back(unique_ptr<CAElementAST>(*it));
     }
     $$ = ast;
   }
   ;
 
-// ConstArrValList   ::= "," ConstExp ConstArrValList | epsilon
-ConstArrValList
-  : ',' ConstExp ConstArrValList {
-    (dynamic_cast<ConstArrValListUnit*>($3))->values.push_back(dynamic_cast<ConstExpAST*>($2));
+// CAElementList ::= "," CAElement CAElementList | epsilon
+CAElementList
+  : ',' CAElement CAElementList {
+    (dynamic_cast<CAElementListUnit*>($3))->values.push_back(dynamic_cast<CAElementAST*>($2));
     $$ = $3;
   }
   | {
-    auto ast = new ConstArrValListUnit();
+    auto ast = new CAElementListUnit();
     $$ = ast;
   }
   ;
 
-// ArrInitVal      ::= "{" "}" | "{" Exp AInitValList "}"
+// AIElement       ::= Exp | ArrInitVal
+AIElement
+  : Exp {
+    auto ast = new AIElementAST();
+    ast->ty = AIElementAST::aity_t::e_exp;
+    ast->content = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | ArrInitVal {
+    auto ast = new AIElementAST();
+    ast->ty = AIElementAST::aity_t::e_arr;
+    ast->content = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+
+// ArrInitVal      ::= "{" "}" | "{" AIElement AIElementList "}"
 ArrInitVal
   : '{' '}' {
     auto ast = new ArrInitValAST();
     $$ = ast;
   }
-  | '{' Exp AInitValList '}' {
+  | '{' AIElement AIElementList '}' {
     auto ast = new ArrInitValAST();
     // 插入开头
-    ast->values.push_back(unique_ptr<ExpAST>(dynamic_cast<ExpAST*>($2)));
-    auto list = unique_ptr<AInitValListUnit>(dynamic_cast<AInitValListUnit*>($3));
+    ast->values.push_back(unique_ptr<AIElementAST>(dynamic_cast<AIElementAST*>($2)));
+    auto list = unique_ptr<AIElementListUnit>(dynamic_cast<AIElementListUnit*>($3));
     // 插入剩余
     for (auto it = list->values.rbegin(); it != list->values.rend(); ++it) {
-      ast->values.push_back(unique_ptr<ExpAST>(*it));
+      ast->values.push_back(unique_ptr<AIElementAST>(*it));
     }
     $$ = ast;
   }
   ;
 
-// AInitValList    ::= "," Exp AInitValList | epsilon
-AInitValList
-  : ',' Exp AInitValList {
-    (dynamic_cast<AInitValListUnit*>($3))->values.push_back(dynamic_cast<ExpAST*>($2));
+// AIElementList    ::= "," AIElement AIElementList | epsilon
+AIElementList
+  : ',' AIElement AIElementList {
+    (dynamic_cast<AIElementListUnit*>($3))->values.push_back(dynamic_cast<AIElementAST*>($2));
     $$ = $3;
   }
   | {
-    auto ast = new AInitValListUnit();
+    auto ast = new AIElementListUnit();
     $$ = ast;
   }
   ;
@@ -384,12 +433,30 @@ FuncFParamsList
   }
   ;
 
-// FuncFParam      ::= BType IDENT
+/*
+FuncFParam      ::= BType IDENT
+                  | BType IDENT "[" "]"
+                  | BType IDENT "[" "]" ArrSize
+*/
 FuncFParam
-  : BType IDENT {
+  : INT IDENT {
     auto ast = new FuncFParamAST();
-    ast->ty = unique_ptr<BaseAST>($1);
+    ast->is_ptr = false;
     ast->param_name = *unique_ptr<string>($2);
+    $$ = ast;
+  }
+  | INT IDENT '[' ']' {
+    auto ast = new FuncFParamAST();
+    ast->param_name = *unique_ptr<string>($2);
+    ast->ptr_size = unique_ptr<BaseAST>(nullptr);
+    ast->is_ptr = true;
+    $$ = ast;
+  }
+  | INT IDENT '[' ']' ArrSize {
+    auto ast = new FuncFParamAST();
+    ast->param_name = *unique_ptr<string>($2);
+    ast->ptr_size = unique_ptr<BaseAST>($5);
+    ast->is_ptr = true;
     $$ = ast;
   }
   ;
@@ -587,7 +654,34 @@ Exp
   }
   ;
 
-// LVal            ::= IDENT | IDENT "[" Exp "]"
+
+// ArrAddr         ::= "[" Exp "]" ArrAddrList
+ArrAddr
+  : '[' Exp ']' ArrAddrList {
+    auto ast = new ArrAddrAST();
+    ast->arr_addr.push_back(unique_ptr<ExpAST>(dynamic_cast<ExpAST*>($2)));
+    auto list = unique_ptr<ArrAddrListUnit>(dynamic_cast<ArrAddrListUnit*>($4));
+    // 插入剩余
+    for (auto it = list->addrs.rbegin(); it != list->addrs.rend(); ++it) {
+      ast->arr_addr.push_back(unique_ptr<ExpAST>(*it));
+    }
+    $$ = ast;
+  }
+  ;
+
+// ArrAddrList     ::= "[" Exp "]" ArrAddrList | epsilon
+ArrAddrList
+  : '[' Exp ']' ArrAddrList {
+    (dynamic_cast<ArrAddrListUnit*>($4))->addrs.push_back(dynamic_cast<ExpAST*>($2));
+    $$ = $4;
+  }
+  | {
+    auto ast = new ArrAddrListUnit();
+    $$ = ast;
+  }
+  ;
+
+// LVal            ::= IDENT | IDENT ArrAddr
 LVal
   : IDENT {
     auto ast = new LValAST();
@@ -595,11 +689,11 @@ LVal
     ast->var_name = *unique_ptr<string>($1);
     $$ = ast;
   }
-  | IDENT '[' Exp ']' {
+  | IDENT ArrAddr {
     auto ast = new LValAST();
     ast->ty = LValAST::lval_t::e_arr;
     ast->var_name = *unique_ptr<string>($1);
-    ast->arr_param = unique_ptr<BaseAST>($3);
+    ast->arr_param = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
   ;
