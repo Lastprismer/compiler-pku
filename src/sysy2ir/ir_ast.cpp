@@ -607,10 +607,8 @@ void FuncFParamsAST::Print(ostream& os, int indent) const {
 }
 
 void FuncFParamsAST::Dump() {
-  auto& gen = IRGenerator::getInstance();
   for (auto it = params.begin(); it != params.end(); it++) {
     (*it)->Dump();
-    gen.funcCore.InsertParam(VarType::e_int, (*it)->param_name);
   }
 }
 
@@ -635,13 +633,34 @@ void FuncFParamAST::Print(ostream& os, int indent) const {
   os << "FuncFParamAST {" << endl;
   make_indent(os, indent + 1);
   os << "param name: " << param_name << endl;
+  make_indent(os, indent + 1);
+  os << "is pointer: " << (is_ptr ? "true" : "false") << endl;
+  if (is_ptr) {
+    make_indent(os, indent + 1);
+    os << "pointer size: []" << endl;
+    ptr_size->Print(os, indent + 1);
+  }
   make_indent(os, indent);
   os << "}," << endl;
 }
 
-// TODO
 void FuncFParamAST::Dump() {
-  // 其他什么都不用做，变量类型自动记录，上层获取变量名
+  auto& gen = IRGenerator::getInstance();
+  auto& pcs = gen.symbolCore.dproc;
+  if (is_ptr) {
+    ptr_size->Dump();
+    auto size(dynamic_cast<ArrSizeAST*>(ptr_size.get())->size_value);
+
+    // 数组开头先拍一个1
+    size.insert(size.begin(), 0);
+    ArrInfo info(size);
+
+    // 取值，不加入符号表，符号表在之后才加
+    auto entry = pcs.GeneratePtrEntry(param_name, info);
+    gen.funcCore.InsertParam(entry);
+  } else {
+    gen.funcCore.InsertParam(VarType::e_int, param_name);
+  }
 }
 
 #pragma endregion
@@ -1103,8 +1122,8 @@ void LValAST::Print(ostream& os, int indent) const {
   make_indent(os, indent + 1);
   os << "var name: " << var_name << endl;
   make_indent(os, indent + 1);
-  os << "ty: " << (ty == e_int ? "int" : "array") << endl;
-  if (ty == e_arr) {
+  os << "ty: " << (ty == e_noaddr ? "no addr" : "with addr") << endl;
+  if (ty == e_withaddr) {
     make_indent(os, indent + 1);
     os << "array param:" << endl;
     arr_param->Print(os, indent + 1);
@@ -1142,16 +1161,20 @@ void LValAST::Dump() {
 
   } else if (entry.var_type == VarType::e_arr) {
     // arr
-
-    auto ptr = dynamic_cast<ArrAddrAST*>(arr_param.get());
+    // 蛤蛤
+    // 我爱lv9
+    // 如果是数组且没有地址或地址维度不够长，退化成指针
+    // 否则退化成int
 
     if (is_assigning) {
       // 左值，设置aproc处理当前符号
+      // 地址一定够长
       aproc.current_var = entry;
       aproc.Disable();
 
       // 解析数组参数
       arr_param->Dump();
+      auto ptr = dynamic_cast<ArrAddrAST*>(arr_param.get());
       const auto addr = ptr->addr_value;
       aproc.arr_addr = addr;
     } else {
@@ -1159,9 +1182,47 @@ void LValAST::Dump() {
       // const arr也在此处处理
 
       // 解析数组参数
+      vector<RetInfo> addr;
+      if (ty == e_withaddr) {
+        arr_param->Dump();
+        auto ptr = dynamic_cast<ArrAddrAST*>(arr_param.get());
+        addr = ptr->addr_value;
+
+        // 数组，地址足够长，就从数组中load值作为thisRet
+        if (addr.size() == entry.arr_info.Dim()) {
+          thisRet = gen.WriteLoadArrInst(entry, addr);
+          return;
+        }
+        // 不够长，退化成指针
+        thisRet = gen.WriteLoadPtrInst(entry, addr);
+      } else
+        // 没有地址，退化成指针
+        addr.push_back(RetInfo(0));
+      thisRet = gen.WriteGetPtrFromArr(entry.GetAllocName(), addr);
+    }
+
+  } else if (entry.var_type == VarType::e_ptr) {
+    // ptr
+
+    auto ptr = dynamic_cast<ArrAddrAST*>(arr_param.get());
+
+    if (is_assigning) {
+      // 左值，设置aproc处理当前符号
+      // 真的会吗
+      aproc.current_var = entry;
+      aproc.Disable();
+
+      // 解析指针参数
       arr_param->Dump();
       const auto addr = ptr->addr_value;
-      thisRet = gen.WriteLoadArrInst(entry, addr);
+      aproc.arr_addr = addr;
+    } else {
+      // 右值，获取其临时符号
+
+      // 解析指针参数
+      arr_param->Dump();
+      const auto addr = ptr->addr_value;
+      thisRet = gen.WriteLoadPtrInst(entry, addr);
     }
   }
 }

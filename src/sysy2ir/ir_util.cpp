@@ -56,8 +56,9 @@ const string GetVarType(const VarType& ty) {
     case VarType::e_int:
       return string("i32");
     case VarType::e_void:
+      return string("");
     default:
-      return string();
+      return string("");
   }
 }
 

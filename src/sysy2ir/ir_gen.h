@@ -57,6 +57,8 @@ struct ArrInfo {
   ArrInfo(const vector<int>& _shape);
   // 获取koopa变量类型名称，如[i32, 2]
   const string GetType() const;
+  // lv9-3 获取koopa指针变量类型名，如*i32, *[i32, 3]
+  const string GetPtrType() const;
   // shape.len()
   const int Dim() const;
   // 获取大小，shape累乘
@@ -139,6 +141,10 @@ class DeclaimProcessor : public BaseProcessor {
   // 常数数组也调用：表项中不存储常数数组初始化信息，因为没必要
   SymbolTableEntry GenerateArrEntry(const string& var_name,
                                     const ArrInfo& info);
+
+  // 生成指针变量表项
+  SymbolTableEntry GeneratePtrEntry(const string& var_name,
+                                    const ArrInfo& ptr_info);
 
   // 生成无初始化的变量表项
   SymbolTableEntry GenerateVarEntry(const string& varName,
@@ -264,6 +270,9 @@ class FuncManager {
   const int registerNewSymbol();
   // 插入参数信息
   void InsertParam(VarType ty, string name);
+  // 插入参数信息，数组用
+  // 蛤蛤，大屎山来喽
+  void InsertParam(const SymbolTableEntry& entry);
   // 打印参数信息，在函数定义处
   void WriteParamsDefine();
   // 为参数分配新的变量，函数定义完后
@@ -428,7 +437,7 @@ class IRGenerator {
   const string WriteGetPtrFromArr(const string& arr_var,
                                   const vector<RetInfo>& addr);
 
-  // 获取指向数组给定地址处的指针，并写下相关指令
+  // 获取存放指向数组给定地址处的指针的变量名，并写下相关一连串指令
   // int版
   const string WriteGetPtrFromArrInt(const string& arr_var,
                                      const vector<int>& addr);
@@ -439,6 +448,29 @@ class IRGenerator {
 
   // 生成向数组中store值的语句
   void WriteStoreArrInst(const SymbolTableEntry& entry,
+                         const RetInfo& value,
+                         const vector<RetInfo>& addr);
+
+  // 生成getptr语句
+  // 语法：{symbol} = getelemptr {ptr_var}, {addr}
+  // 行为：取出ptr_var[addr]的地址存入symbol
+  void WriteGetPtrInst(const string& symbol,
+                       const string& arr_var,
+                       const string& addr) const;
+
+  // 生成指针变量函数参数定义
+  void WriteAllocPtrInst(const SymbolTableEntry& entry);
+
+  // 获取指向指针+index给定地址处的指针，并写下相关一连串指令
+  const string WriteGetPtrFromPtr(const string& arr_var,
+                                  const vector<RetInfo>& addr);
+
+  // 生成从指针中load值的语句
+  const RetInfo WriteLoadPtrInst(const SymbolTableEntry& entry,
+                                 const vector<RetInfo>& addr);
+
+  // 生成向指针中store值的语句
+  void WriteStorePtrInst(const SymbolTableEntry& entry,
                          const RetInfo& value,
                          const vector<RetInfo>& addr);
 

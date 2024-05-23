@@ -434,9 +434,9 @@ FuncFParamsList
   ;
 
 /*
-FuncFParam      ::= BType IDENT
-                  | BType IDENT "[" "]"
-                  | BType IDENT "[" "]" ArrSize
+FuncFParam      ::= INT IDENT
+                  | INT IDENT "[" "]"
+                  | INT IDENT "[" "]" ArrSize
 */
 FuncFParam
   : INT IDENT {
@@ -448,7 +448,7 @@ FuncFParam
   | INT IDENT '[' ']' {
     auto ast = new FuncFParamAST();
     ast->param_name = *unique_ptr<string>($2);
-    ast->ptr_size = unique_ptr<BaseAST>(nullptr);
+    ast->ptr_size = unique_ptr<BaseAST>(new ArrSizeAST());
     ast->is_ptr = true;
     $$ = ast;
   }
@@ -685,13 +685,13 @@ ArrAddrList
 LVal
   : IDENT {
     auto ast = new LValAST();
-    ast->ty = LValAST::lval_t::e_int;
+    ast->ty = LValAST::lval_t::e_noaddr;
     ast->var_name = *unique_ptr<string>($1);
     $$ = ast;
   }
   | IDENT ArrAddr {
     auto ast = new LValAST();
-    ast->ty = LValAST::lval_t::e_arr;
+    ast->ty = LValAST::lval_t::e_withaddr;
     ast->var_name = *unique_ptr<string>($1);
     ast->arr_param = unique_ptr<BaseAST>($2);
     $$ = ast;

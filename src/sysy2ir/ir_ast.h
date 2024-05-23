@@ -54,9 +54,9 @@ AIElementList   ::= "," AIElement AIElementList | epsilon
 FuncDef         ::= BType IDENT "(" FuncFParams ")" Block
 FuncFParams     ::= FuncFParam FuncFParamsList | epsilon
 FuncFParamsList ::= "," FuncFParam FuncFParamsList | epsilon
-FuncFParam      ::= BType IDENT
-                  | BType IDENT "[" "]"
-                  | BType IDENT "[" "]" ArrSize
+FuncFParam      ::= INT IDENT
+                  | INT IDENT "[" "]"
+                  | INT IDENT "[" "]" ArrSize
 
 语句：
 Block           ::= "{" BlockItem BlockList "}"
@@ -433,9 +433,9 @@ class FuncFParamsListUnit : public BaseAST {
 
 #pragma region FuncFParam
 /*
-FuncFParam      ::= BType IDENT
-                  | BType IDENT "[" "]"
-                  | BType IDENT "[" "]" ArrSize
+FuncFParam      ::= INT IDENT
+                  | INT IDENT "[" "]"
+                  | INT IDENT "[" "]" ArrSize
 */
 class FuncFParamAST : public BaseAST {
  public:
@@ -595,7 +595,7 @@ class ArrAddrListUnit : public BaseAST {
 // LVal            ::= IDENT | IDENT ArrAddr
 class LValAST : public BaseAST {
  public:
-  enum lval_t { e_int, e_arr } ty;
+  enum lval_t { e_noaddr, e_withaddr } ty;
   unique_ptr<BaseAST> arr_param;
   string var_name;
   RetInfo thisRet;

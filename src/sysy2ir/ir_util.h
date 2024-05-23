@@ -9,7 +9,7 @@ namespace ir {
 using std::string, std::vector, std::stringstream;
 
 enum class SymbolType { e_unused, e_const, e_var };
-enum class VarType { e_unused, e_int, e_void, e_arr };
+enum class VarType { e_unused, e_int, e_void, e_arr, e_ptr };
 
 enum OpID {
   UNARY_POS,

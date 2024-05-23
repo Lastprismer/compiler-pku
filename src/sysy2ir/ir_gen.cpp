@@ -79,6 +79,22 @@ const string ArrInfo::GetType() const {
   return ss.str();
 }
 
+const string ArrInfo::GetPtrType() const {
+  assert(shape[0] == 0);
+  stringstream ss;
+  int dim = Dim();
+  ss << '*';
+  // 第0维是0，不要
+  for (int i = 1; i < dim; i++) {
+    ss << "[";
+  }
+  ss << "i32";
+  for (int i = dim - 1; i > 0; i--) {
+    ss << ", " << shape[i] << "]";
+  }
+  return ss.str();
+}
+
 const int ArrInfo::Dim() const {
   return shape.size();
 }
@@ -149,8 +165,7 @@ const string SymbolTableEntry::GetLoadInst(
 
 const string SymbolTableEntry::GetStoreInst(
     const string& storeFromSymbolName) const {
-  assert(symbol_type == SymbolType::e_var);
-  if (var_type == VarType::e_int) {
+  if (var_type == VarType::e_int || var_type == VarType::e_ptr) {
     // int
     // store %0, @x
     stringstream ss;
@@ -267,10 +282,21 @@ SymbolTableEntry DeclaimProcessor::GenerateConstEntry(const string& var_name,
 SymbolTableEntry DeclaimProcessor::GenerateArrEntry(const string& var_name,
                                                     const ArrInfo& info) {
   SymbolTableEntry ste;
-  ste.symbol_type = SymbolType::e_const;
+  ste.symbol_type = SymbolType::e_var;
   ste.var_type = VarType::e_arr;
   ste.var_name = var_name;
   ste.arr_info = info;
+  ste.id = RegisterVar();
+  return ste;
+}
+
+SymbolTableEntry DeclaimProcessor::GeneratePtrEntry(const string& var_name,
+                                                    const ArrInfo& ptr_info) {
+  SymbolTableEntry ste;
+  ste.symbol_type = SymbolType::e_var;
+  ste.var_type = VarType::e_ptr;
+  ste.var_name = var_name;
+  ste.arr_info = ptr_info;
   ste.id = RegisterVar();
   return ste;
 }
@@ -322,6 +348,8 @@ void AssignmentProcessor::WriteAssign(const RetInfo& value) const {
     gen.WriteStoreInst(value, current_var);
   } else if (current_var.var_type == VarType::e_arr) {
     gen.WriteStoreArrInst(current_var, value, arr_addr);
+  } else if (current_var.var_type == VarType::e_ptr) {
+    gen.WriteStorePtrInst(current_var, value, arr_addr);
   }
 }
 
@@ -448,31 +476,44 @@ void FuncManager::InsertParam(VarType ty, string name) {
       gen.symbolCore.dproc.QuickGenEntry(SymbolType::e_var, ty, name));
 }
 
+void FuncManager::InsertParam(const SymbolTableEntry& entry) {
+  params.push_back(entry);
+}
+
 void FuncManager::WriteParamsDefine() {
   auto& os = IRGenerator::getInstance().setting.getOs();
-  if (params.size() == 0)
-    return;
-  os << getParamVarName(params[0].var_name) << ": "
-     << GetVarType(params[0].var_type);
+  int len = params.size();
 
-  if (params.size() > 1) {
-    for (auto it = ++params.begin(); it != params.end(); it++) {
-      os << ", " << getParamVarName(it->var_name) << ": "
-         << GetVarType(it->var_type);
+  for (int i = 0; i < len; i++) {
+    if (i != 0)
+      os << ", ";
+    if (params[i].var_type == VarType::e_int) {
+      os << getParamVarName(params[i].var_name) << ": "
+         << GetVarType(params[i].var_type);
+    } else if (params[i].var_type == VarType::e_ptr) {
+      os << getParamVarName(params[i].var_name) << ": "
+         << params[i].arr_info.GetPtrType();
     }
   }
 }
 
 void FuncManager::WriteAllocParams() {
   auto& gen = IRGenerator::getInstance();
-  auto& dproc = gen.symbolCore.dproc;
   for (auto it = params.begin(); it != params.end(); it++) {
-    SymbolTableEntry entry =
-        dproc.QuickGenEntry(it->symbol_type, it->var_type, it->var_name);
-    gen.WriteAllocInst(entry);
-    gen.symbolCore.InsertEntry(entry);
-    RetInfo tmp(getParamVarName(it->var_name));
-    gen.WriteStoreInst(tmp, entry);
+    SymbolTableEntry entry(*it);
+    if (entry.var_type == VarType::e_int) {
+      gen.WriteAllocInst(entry);
+      gen.symbolCore.InsertEntry(entry);
+      RetInfo tmp(getParamVarName(it->var_name));
+      gen.WriteStoreInst(tmp, entry);
+    } else if (entry.var_type == VarType::e_ptr) {
+      gen.WriteAllocPtrInst(entry);
+      gen.symbolCore.InsertEntry(entry);
+      RetInfo tmp(getParamVarName(it->var_name));
+      gen.WriteStoreInst(tmp, entry);
+    } else {
+      assert(false);
+    }
   }
 }
 
@@ -830,14 +871,13 @@ const RetInfo IRGenerator::WriteCallInst(const string& func_name,
     hasRetValue = true;
   }
 
+  int len = params.size();
   os << "call @" << func_name << "(";
 
-  int len = params.size();
-  if (len > 0) {
-    os << params[0].GetInfo();
-    for (int i = 1; i < len; i++) {
-      os << ", " << params[i].GetInfo();
-    }
+  for (int i = 0; i < len; i++) {
+    if (i != 0)
+      os << ", ";
+    os << params[i].GetInfo();
   }
 
   os << ")" << endl;
@@ -982,7 +1022,7 @@ const string IRGenerator::WriteGetPtrFromArrInt(const string& arr_var,
     if (i != len - 1)
       addr_1 = getSymbolName(funcCore.registerNewSymbol());
   }
-  return addr_2;
+  return addr_1;
 }
 
 const RetInfo IRGenerator::WriteLoadArrInst(const SymbolTableEntry& entry,
@@ -1002,6 +1042,65 @@ void IRGenerator::WriteStoreArrInst(const SymbolTableEntry& entry,
   auto& os = setting.getOs();
 
   const string addr_1 = WriteGetPtrFromArr(entry.GetAllocName(), addr);
+
+  const string ret = getSymbolName(funcCore.registerNewSymbol());
+  os << setting.getIndentStr() << "store " << value.GetInfo() << ", " << addr_1
+     << endl;
+  return;
+}
+
+void IRGenerator::WriteGetPtrInst(const string& symbol,
+                                  const string& arr_var,
+                                  const string& addr) const {
+  auto& os = setting.getOs();
+  const string indent = setting.getIndentStr();
+  os << indent << symbol << " = getptr " << arr_var << ", " << addr << endl;
+}
+
+void IRGenerator::WriteAllocPtrInst(const SymbolTableEntry& entry) {
+  assert(entry.var_type == VarType::e_ptr);
+  auto& os = setting.getOs();
+
+  // 定义
+  os << setting.getIndentStr() << entry.GetAllocName() << " = alloc "
+     << entry.arr_info.GetPtrType() << endl;
+}
+
+const string IRGenerator::WriteGetPtrFromPtr(const string& arr_var,
+                                             const vector<RetInfo>& addr) {
+  // 必须有坐标
+  assert(addr.size() >= 1);
+  string addr_1 = getSymbolName(funcCore.registerNewSymbol());
+  string addr_2 = arr_var;
+  int len = addr.size();
+  WriteGetPtrInst(addr_1, addr_2, addr[0].GetInfo());
+
+  for (int i = 1; i < len; i++) {
+    WriteGetelemptrInst(addr_1, addr_2, addr[i].GetInfo());
+    addr_2 = addr_1;
+    if (i != len - 1)
+      addr_1 = getSymbolName(funcCore.registerNewSymbol());
+  }
+  return addr_1;
+}
+
+const RetInfo IRGenerator::WriteLoadPtrInst(const SymbolTableEntry& entry,
+                                            const vector<RetInfo>& addr) {
+  auto& os = setting.getOs();
+
+  const string addr_1 = WriteGetPtrFromPtr(entry.GetAllocName(), addr);
+
+  const string ret = getSymbolName(funcCore.registerNewSymbol());
+  os << setting.getIndentStr() << ret << " = load " << addr_1 << endl;
+  return RetInfo(ret);
+}
+
+void IRGenerator::WriteStorePtrInst(const SymbolTableEntry& entry,
+                                    const RetInfo& value,
+                                    const vector<RetInfo>& addr) {
+  auto& os = setting.getOs();
+
+  const string addr_1 = WriteGetPtrFromPtr(entry.GetAllocName(), addr);
 
   const string ret = getSymbolName(funcCore.registerNewSymbol());
   os << setting.getIndentStr() << "store " << value.GetInfo() << ", " << addr_1
