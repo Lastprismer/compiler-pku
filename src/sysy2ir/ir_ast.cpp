@@ -1194,7 +1194,8 @@ void LValAST::Dump() {
           return;
         }
         // 不够长，退化成指针
-        thisRet = gen.WriteLoadPtrInst(entry, addr);
+        addr.push_back(RetInfo(0));
+        thisRet = gen.WriteGetPtrFromArr(entry.GetAllocName(), addr);
       } else
         // 没有地址，退化成指针
         addr.push_back(RetInfo(0));
@@ -1208,7 +1209,6 @@ void LValAST::Dump() {
 
     if (is_assigning) {
       // 左值，设置aproc处理当前符号
-      // 真的会吗
       aproc.current_var = entry;
       aproc.Disable();
 
@@ -1219,10 +1219,25 @@ void LValAST::Dump() {
     } else {
       // 右值，获取其临时符号
 
-      // 解析指针参数
-      arr_param->Dump();
-      const auto addr = ptr->addr_value;
-      thisRet = gen.WriteLoadPtrInst(entry, addr);
+      // 解析数组参数
+      vector<RetInfo> addr;
+      if (ty == e_withaddr) {
+        arr_param->Dump();
+        auto ptr = dynamic_cast<ArrAddrAST*>(arr_param.get());
+        addr = ptr->addr_value;
+
+        // 数组，地址足够长，就从数组中load值作为thisRet
+        if (addr.size() == entry.arr_info.Dim()) {
+          thisRet = gen.WriteLoadPtrInst(entry, addr);
+          return;
+        }
+        // 不够长，退化成指针
+        addr.push_back(RetInfo(0));
+        thisRet = gen.WriteGetPtrFromPtr(entry.GetAllocName(), addr);
+      } else
+        // 没有地址，退化成指针
+        addr.push_back(RetInfo(0));
+      thisRet = gen.WriteGetPtrFromPtr(entry.GetAllocName(), addr);
     }
   }
 }

@@ -1070,13 +1070,23 @@ const string IRGenerator::WriteGetPtrFromPtr(const string& arr_var,
                                              const vector<RetInfo>& addr) {
   // 必须有坐标
   assert(addr.size() >= 1);
+
   string addr_1 = getSymbolName(funcCore.registerNewSymbol());
   string addr_2 = arr_var;
-  int len = addr.size();
-  WriteGetPtrInst(addr_1, addr_2, addr[0].GetInfo());
 
-  for (int i = 1; i < len; i++) {
-    WriteGetelemptrInst(addr_1, addr_2, addr[i].GetInfo());
+  // 先load
+  auto& os = setting.getOs();
+  const string indent = setting.getIndentStr();
+  os << indent << addr_1 << " = load " << addr_2 << endl;
+  addr_2 = addr_1;
+  addr_1 = getSymbolName(funcCore.registerNewSymbol());
+
+  int len = addr.size();
+  for (int i = 0; i < len; i++) {
+    if (i == 0)
+      WriteGetPtrInst(addr_1, addr_2, addr[0].GetInfo());
+    else
+      WriteGetelemptrInst(addr_1, addr_2, addr[i].GetInfo());
     addr_2 = addr_1;
     if (i != len - 1)
       addr_1 = getSymbolName(funcCore.registerNewSymbol());
