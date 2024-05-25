@@ -156,7 +156,6 @@ void visit_inst_int(const koopa_raw_integer_t& inst_int) {
 
 void visit_inst_alloc(const koopa_raw_value_t& value) {
   auto& gen = RiscvGenerator::getInstance();
-  // int不必处理
   if (value->ty->data.pointer.base->tag == KOOPA_RTT_ARRAY) {
     ArrInfo info;
     auto base = value->ty->data.pointer.base;
@@ -183,6 +182,10 @@ void visit_inst_alloc(const koopa_raw_value_t& value) {
     info.stack_addr = gen.stackCore.IncreaseStackUsed();
     gen.arrCore.arrinfos.emplace(value, info);
     InstResultInfo retinfo(ValueType::e_stack, info.stack_addr);
+    gen.stackCore.InstResult.emplace(value, retinfo);
+  } else if (value->ty->data.pointer.base->tag == KOOPA_RTT_INT32) {
+    InstResultInfo retinfo(ValueType::e_stack,
+                           gen.stackCore.IncreaseStackUsed());
     gen.stackCore.InstResult.emplace(value, retinfo);
   }
 }
@@ -260,21 +263,23 @@ void visit_inst_load(const koopa_raw_value_t& inst) {
     return;
   }
 
-  if (arr_core.arrinfos.find(inst->kind.data.load.src) !=
-      arr_core.arrinfos.end()) {
+  else if (arr_core.arrinfos.find(inst->kind.data.load.src) !=
+           arr_core.arrinfos.end()) {
     arr_core.arrinfos.emplace(inst,
                               arr_core.arrinfos.at(inst->kind.data.load.src));
     return;
   }
 
-  if (stack_core.InstResult.find(inst->kind.data.load.src) !=
-      stack_core.InstResult.end()) {
+  else if (stack_core.InstResult.find(inst->kind.data.load.src) !=
+           stack_core.InstResult.end()) {
     // 从普通的值里load
 
     stack_core.InstResult[inst] =
         stack_core.InstResult[inst->kind.data.load.src];
     return;
   }
+  gen.setting.getOs() << "src type: " << inst->kind.data.load.src->kind.tag
+                      << endl;
   assert(false);
 }
 
