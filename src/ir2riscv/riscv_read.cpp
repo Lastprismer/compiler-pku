@@ -180,7 +180,10 @@ void visit_inst_alloc(const koopa_raw_value_t& value) {
       info.shape.insert(info.shape.begin(), base->data.array.len);
       base = base->data.array.base;
     }
+    info.stack_addr = gen.stackCore.IncreaseStackUsed();
     gen.arrCore.arrinfos.emplace(value, info);
+    InstResultInfo retinfo(ValueType::e_stack, info.stack_addr);
+    gen.stackCore.InstResult.emplace(value, retinfo);
   }
 }
 
@@ -218,6 +221,7 @@ void visit_inst_globalalloc(const koopa_raw_value_t& inst) {
 void visit_inst_load(const koopa_raw_value_t& inst) {
   auto& gen = RiscvGenerator::getInstance();
   auto& stack_core = gen.stackCore;
+  auto& arr_core = gen.arrCore;
 
   if (inst->kind.data.load.src->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
     // 加载全局变量
@@ -256,8 +260,15 @@ void visit_inst_load(const koopa_raw_value_t& inst) {
     return;
   }
 
-  else if (stack_core.InstResult.find(inst->kind.data.load.src) !=
-           stack_core.InstResult.end()) {
+  if (arr_core.arrinfos.find(inst->kind.data.load.src) !=
+      arr_core.arrinfos.end()) {
+    arr_core.arrinfos.emplace(inst,
+                              arr_core.arrinfos.at(inst->kind.data.load.src));
+    return;
+  }
+
+  if (stack_core.InstResult.find(inst->kind.data.load.src) !=
+      stack_core.InstResult.end()) {
     // 从普通的值里load
 
     stack_core.InstResult[inst] =
