@@ -15,7 +15,12 @@ namespace riscv {
 
 typedef koopa_raw_binary_op_t OpType;
 
-enum class ValueType { e_unused, e_imm, e_reg, e_stack };
+enum class ValueType {
+  e_unused,
+  e_imm,
+  e_reg,
+  e_stack,
+};
 // 指令结果信息
 struct InstResultInfo {
   ValueType ty;
@@ -29,6 +34,39 @@ struct InstResultInfo {
   InstResultInfo(const Reg& reg);
   InstResultInfo(const ValueType& ty, int value);
 };
+
+// 数组初始化单个节点
+struct ArrInit {
+  enum { e_int, e_zero } ty;
+  union {
+    int value;
+    int zerolen;
+  } content;
+  ArrInit(const int& val);
+};
+
+// 数组信息
+struct ArrInfo {
+  // 存储shape
+  vector<int> shape;
+  // 初始化数据，表示一个数或者一堆0的序列
+  vector<ArrInit> init;
+  // 当前已经初始化的长度
+  int init_len;
+  // 对于临时数组，存储相对于sp的地址
+  int stack_addr;
+
+  ArrInfo();
+  ArrInfo(const vector<int>& _shape);
+  // 初始化时推入一个数
+  void PushNum(const int& val);
+  // 获取大小
+  const int GetSize();
+  // 给定维度i，获取从i到max的维度的总空间
+  // 如：int a[2][3][5], (i) = 3*5*4, 也就是第一次getelemptr需要的步长
+  const int GetSize(int i);
+};
+
 // 寄存器模块
 class RegisterModule {
  private:
@@ -132,6 +170,26 @@ class GlobalVarModule {
   const int WriteLoadGlobalVar(const string& name);
   // 存储到全局变量，返回全局变量的地址，info只支持int和reg
   void WriteStoreGlobalVar(const string& name, const InstResultInfo& src_info);
+
+  // 生成全局数组声明
+  void WriteGlobalArrDecl(const string& name, const ArrInfo& init);
+};
+
+// 记录alloc指令和数组关系的表
+class ArrInfoModule {
+ public:
+  map<koopa_raw_value_t, ArrInfo> arrinfos;
+
+  // 当前正在分析的数组，会在第一次调用从alloc中getelemptr时赋值
+  ArrInfo current_arr;
+
+  // 当前解析到的维度数，算指针用
+  int current_dim;
+
+  ArrInfoModule();
+
+  // 用current dim计算current arr的分片size
+  const int GetCurArrSize();
 };
 
 class RiscvGenerator {
@@ -148,6 +206,7 @@ class RiscvGenerator {
   BBModule bbCore;
   FuncModule funcCore;
   GlobalVarModule globalCore;
+  ArrInfoModule arrCore;
   static RiscvGenerator& getInstance();
 
   // 输入运算符，输出指令

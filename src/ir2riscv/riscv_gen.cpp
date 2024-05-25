@@ -2,6 +2,55 @@
 
 namespace riscv {
 
+#pragma region Arrinit
+
+ArrInfo::ArrInfo() : shape(), init(), init_len(0), stack_addr(0) {}
+
+ArrInfo::ArrInfo(const vector<int>& _shape)
+    : shape(_shape), init(), init_len(0), stack_addr(0) {}
+
+void ArrInfo::PushNum(const int& val) {
+  if (val != 0) {
+    init.push_back(ArrInit(val));
+  } else if (val == 0) {
+    if (init.size() == 0 || init[init.size() - 1].ty == ArrInit::e_int) {
+      init.push_back(ArrInit(0));
+    } else {
+      init[init.size() - 1].content.zerolen++;
+    }
+  }
+  init_len++;
+}
+
+const int ArrInfo::GetSize() {
+  int size = 4;
+  for (auto i : shape) {
+    size *= i;
+  }
+  return size;
+}
+
+const int ArrInfo::GetSize(int i) {
+  int size = 4;
+
+  for (int j = shape.size() - i - 1; j > -1; j--) {
+    size *= shape[j];
+  }
+  return size;
+}
+
+ArrInit::ArrInit(const int& val) {
+  if (val != 0) {
+    ty = e_int;
+    content.value = val;
+  } else {
+    ty = e_zero;
+    content.zerolen = 1;
+  }
+}
+
+#pragma endregion
+
 #pragma region Register
 
 RegisterModule::RegisterModule() {
@@ -118,7 +167,7 @@ void StackMemoryModule::WriteDataTranfer(const InstResultInfo& src,
         // stack -> reg
         WriteLW(dest.content.reg, src.content.addr);
       }
-    }
+    } break;
     default:
       break;
   }
@@ -353,12 +402,36 @@ void GlobalVarModule::WriteStoreGlobalVar(const string& name,
   return;
 }
 
+void GlobalVarModule::WriteGlobalArrDecl(const string& name,
+                                         const ArrInfo& init) {
+  auto& gen = RiscvGenerator::getInstance();
+  auto& os = gen.setting.getOs();
+
+  os << "\n  .data\n  .globl " << name << "\n" << name << ": \n";
+  for (const auto& i : init.init) {
+    if (i.ty == ArrInit::e_int) {
+      os << "  .word " << i.content.value << endl;
+    } else {
+      os << "  .zero " << i.content.zerolen * 4 << endl;
+    }
+  }
+}
+#pragma endregion
+
+#pragma region arr
+
+ArrInfoModule::ArrInfoModule() : arrinfos(), current_arr(), current_dim() {}
+
+const int ArrInfoModule::GetCurArrSize() {
+  return current_arr.GetSize(current_dim);
+}
+
 #pragma endregion
 
 #pragma region RiscvGen
 
 RiscvGenerator::RiscvGenerator()
-    : regCore(), stackCore(), bbCore(), globalCore() {
+    : regCore(), stackCore(), bbCore(), funcCore(), globalCore(), arrCore() {
   setting.setOs(cout).setIndent(0);
 }
 

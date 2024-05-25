@@ -45,6 +45,12 @@ void visit_inst_load(const koopa_raw_value_t& inst_load);
 // 访问store
 void visit_inst_store(const koopa_raw_value_t& inst);
 
+// 访问getptr
+void visit_inst_getptr(const koopa_raw_value_t& inst);
+
+// 访问getelemptr
+void visit_inst_getelemptr(const koopa_raw_value_t& inst);
+
 // 访问二元运算
 void visit_inst_binary(const koopa_raw_value_t& inst);
 
@@ -70,5 +76,10 @@ const Reg GetValueResult(const koopa_raw_value_t& value);
 
 // 给定参数号，输出应该存储这个参数的位置
 const InstResultInfo GetParamPosition(const int& param_cnt);
+
+// 解析聚合初始化的全局数组，将初始化值加入info
+void SolveArrAggInit(const koopa_raw_value_t& value,
+                     ArrInfo& info,
+                     const bool& should_push_dim);
 
 }  // namespace riscv

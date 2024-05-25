@@ -74,17 +74,24 @@ void visit_value(const koopa_raw_value_t& value) {
       // visit_inst_int(kind.data.integer);
       break;
 
+    case KOOPA_RVT_ZERO_INIT:
+      break;
+
     case KOOPA_RVT_UNDEF:
-      cout << "what?" << endl;
       break;
 
     case KOOPA_RVT_AGGREGATE:
-      cout << "what?" << endl;
+      break;
+
+    case KOOPA_RVT_FUNC_ARG_REF:
+      break;
+
+    case KOOPA_RVT_BLOCK_ARG_REF:
       break;
 
     case KOOPA_RVT_ALLOC:
       // cout << "  alloc" << endl;
-      // visit_inst_alloc(value);
+      visit_inst_alloc(value);
       break;
 
     case KOOPA_RVT_GLOBAL_ALLOC:
@@ -99,6 +106,14 @@ void visit_value(const koopa_raw_value_t& value) {
     case KOOPA_RVT_STORE:
       // cout << "  store" << endl;
       visit_inst_store(value);
+      break;
+
+    case KOOPA_RVT_GET_PTR:
+      visit_inst_getptr(value);
+      break;
+
+    case KOOPA_RVT_GET_ELEM_PTR:
+      visit_inst_getelemptr(value);
       break;
 
     case KOOPA_RVT_BINARY:
@@ -140,21 +155,64 @@ void visit_inst_int(const koopa_raw_integer_t& inst_int) {
 }
 
 void visit_inst_alloc(const koopa_raw_value_t& value) {
-  cerr << "NOT EXPECTED" << endl;
+  auto& gen = RiscvGenerator::getInstance();
+  // int不必处理
+  if (value->ty->data.pointer.base->tag == KOOPA_RTT_ARRAY) {
+    ArrInfo info;
+    auto base = value->ty->data.pointer.base;
+    while (base->tag == KOOPA_RTT_ARRAY) {
+      info.shape.insert(info.shape.begin(), base->data.array.len);
+      base = base->data.array.base;
+    }
+    // 保存地址
+    gen.stackCore.stack_used += info.GetSize();
+    // 记录低地址
+    info.stack_addr = gen.stackCore.stack_memory - gen.stackCore.stack_used;
+
+    gen.arrCore.arrinfos.emplace(value, info);
+  } else if (value->ty->data.pointer.base->tag == KOOPA_RTT_POINTER) {
+    // 指针：当成第一维为1的数组，方便计算地址
+    ArrInfo info;
+    info.shape.insert(info.shape.begin(), 1);
+    // 指针指向的指针的解引用，数组或int
+    auto base = value->ty->data.pointer.base->data.pointer.base;
+    while (base->tag == KOOPA_RTT_ARRAY) {
+      info.shape.insert(info.shape.begin(), base->data.array.len);
+      base = base->data.array.base;
+    }
+    gen.arrCore.arrinfos.emplace(value, info);
+  }
 }
 
 void visit_inst_globalalloc(const koopa_raw_value_t& inst) {
   auto& gen = RiscvGenerator::getInstance();
   // 保存相关信息，声明全局变量
-  InitInfo info;
   const auto& inst_init = inst->kind.data.global_alloc.init;
+
   if (inst_init->kind.tag == KOOPA_RVT_INTEGER) {
+    InitInfo info;
     info.ty = InitType::e_int;
     info.value = inst_init->kind.data.integer.value;
+    gen.globalCore.WriteGlobalVarDecl(ParseSymbol(inst->name), info);
+
   } else if (inst_init->kind.tag == KOOPA_RVT_ZERO_INIT) {
+    // zeroinit必是int
+    InitInfo info;
     info.ty = InitType::e_zeroinit;
+    gen.globalCore.WriteGlobalVarDecl(ParseSymbol(inst->name), info);
+
+  } else if (inst_init->kind.tag == KOOPA_RVT_AGGREGATE) {
+    // 是一个一个数组
+    ArrInfo info;
+    // 递归解析
+    SolveArrAggInit(inst_init, info, true);
+    gen.globalCore.WriteGlobalArrDecl(ParseSymbol(inst->name), info);
+
+    // 将相关信息存进全局数组表
+    // 新建一个arrinfo以消除初始化数据
+    ArrInfo new_info(info.shape);
+    gen.arrCore.arrinfos.emplace(inst, new_info);
   }
-  gen.globalCore.WriteGlobalVarDecl(ParseSymbol(inst->name), info);
 }
 
 void visit_inst_load(const koopa_raw_value_t& inst) {
@@ -168,11 +226,40 @@ void visit_inst_load(const koopa_raw_value_t& inst) {
     // 存储其位置
     stack_core.InstResult.emplace(inst,
                                   InstResultInfo(ValueType::e_stack, addr));
+
+    return;
+  }
+
+  else if (inst->kind.data.load.src->kind.tag == KOOPA_RVT_GET_ELEM_PTR ||
+           inst->kind.data.load.src->kind.tag == KOOPA_RVT_GET_PTR) {
+    // 手动读出来，再存到栈里
+    auto& value = inst->kind.data.load.src;
+    auto& os = gen.setting.getOs();
+
+    Reg val = gen.regCore.GetAvailableReg();
+    Reg realaddr = gen.regCore.GetAvailableReg();
+
+    const auto& info = gen.stackCore.InstResult.at(value);
+
+    gen.stackCore.WriteLW(realaddr, info.content.addr);
+    // 将值load进val中
+    lw(os, val, realaddr, 0);
+
+    // 将val存到这个指令的输出中
+    InstResultInfo destinfo(ValueType::e_stack, stack_core.IncreaseStackUsed());
+    InstResultInfo srcinfo(val);
+    stack_core.WriteDataTranfer(srcinfo, destinfo);
+    stack_core.InstResult.emplace(inst, destinfo);
+
+    gen.regCore.ReleaseReg(realaddr);
+    gen.regCore.ReleaseReg(val);
     return;
   }
 
   else if (stack_core.InstResult.find(inst->kind.data.load.src) !=
            stack_core.InstResult.end()) {
+    // 从普通的值里load
+
     stack_core.InstResult[inst] =
         stack_core.InstResult[inst->kind.data.load.src];
     return;
@@ -218,10 +305,41 @@ void visit_inst_store(const koopa_raw_value_t& inst) {
     // 截胡
     gen.globalCore.WriteStoreGlobalVar(ParseSymbol(inst_store.dest->name), src);
     return;
+  }
 
-  } else if (stack_core.InstResult.find(inst_store.dest) !=
-             stack_core.InstResult.end()) {
+  else if (stack_core.InstResult.find(inst_store.dest) !=
+           stack_core.InstResult.end()) {
     dest = stack_core.InstResult.at(inst_store.dest);
+    if (inst_store.dest->kind.tag == KOOPA_RVT_GET_ELEM_PTR ||
+        inst_store.dest->kind.tag == KOOPA_RVT_GET_PTR) {
+      // 截胡
+      // 先处理src
+      auto& os = gen.setting.getOs();
+      Reg srcreg = gen.regCore.GetAvailableReg();
+      switch (src.ty) {
+        case ValueType::e_imm:
+          li(os, srcreg, src.content.imm);
+          break;
+        case ValueType::e_reg:
+          addi(os, srcreg, src.content.reg, 0);
+          break;
+        case ValueType::e_stack:
+          gen.stackCore.WriteLW(srcreg, src.content.addr);
+          break;
+        default:
+          break;
+      }
+      // srcreg内存储要加载进去的值
+      // 加载
+
+      Reg realaddr = gen.regCore.GetAvailableReg();
+      gen.stackCore.WriteLW(realaddr, dest.content.addr);
+      sw(os, realaddr, srcreg, 0);
+
+      gen.regCore.ReleaseReg(realaddr);
+      gen.regCore.ReleaseReg(srcreg);
+      return;
+    }
   } else {
     // 存进栈里
     dest.ty = ValueType::e_stack;
@@ -236,6 +354,166 @@ void visit_inst_store(const koopa_raw_value_t& inst) {
   if (src.ty == ValueType::e_reg) {
     gen.regCore.ReleaseReg(src.content.reg);
   }
+}
+
+void visit_inst_getptr(const koopa_raw_value_t& inst) {
+  const auto& inst_gep = inst->kind.data.get_elem_ptr;
+
+  auto& gen = RiscvGenerator::getInstance();
+  auto& arr_core = gen.arrCore;
+  auto& stack_core = gen.stackCore;
+  auto& reg_core = gen.regCore;
+  auto& os = gen.setting.getOs();
+
+  Reg regsrc = reg_core.GetAvailableReg();
+  Reg addr = reg_core.GetAvailableReg();
+  int sizejump = 0;
+
+  ArrInfo& info = arr_core.arrinfos[inst_gep.src];
+  arr_core.current_arr = info;
+  arr_core.current_dim = 1;
+  sizejump = arr_core.GetCurArrSize();
+
+  // src加载到reg src中
+  Reg tmp = reg_core.GetAvailableReg();
+  assert(info.stack_addr != -1);
+  if (IsImmInBound(info.stack_addr)) {
+    addi(os, tmp, Reg::sp, info.stack_addr);
+  } else {
+    li(os, tmp, info.stack_addr);
+    add(os, tmp, Reg::sp, tmp);
+  }
+  // getptr要多进行一次lw
+  lw(os, regsrc, tmp, 0);
+  reg_core.ReleaseReg(tmp);
+
+  // index加载到addr中
+  if (inst_gep.index->kind.tag == KOOPA_RVT_INTEGER) {
+    li(os, addr, inst_gep.index->kind.data.integer.value);
+  } else {
+    stack_core.WriteDataTranfer(stack_core.InstResult.at(inst_gep.index),
+                                InstResultInfo(addr));
+  }
+
+  // 计算地址偏移
+  Reg tmp1 = reg_core.GetAvailableReg();
+  li(os, tmp1, sizejump);
+  mul(os, addr, addr, tmp1);
+  reg_core.ReleaseReg(tmp1);
+
+  // 计算地址
+  // 最后存在src中
+  add(os, regsrc, regsrc, addr);
+
+  // 存回内存，返回值应该是地址
+  InstResultInfo destinfo(ValueType::e_stack, stack_core.IncreaseStackUsed());
+  InstResultInfo srcinfo(regsrc);
+  // 走reg -> stack
+  stack_core.WriteDataTranfer(srcinfo, destinfo);
+  // 保存指令返回值
+  stack_core.InstResult.emplace(inst, destinfo);
+
+  reg_core.ReleaseReg(addr);
+  reg_core.ReleaseReg(regsrc);
+}
+
+void visit_inst_getelemptr(const koopa_raw_value_t& inst) {
+  const auto& inst_gep = inst->kind.data.get_elem_ptr;
+
+  auto& gen = RiscvGenerator::getInstance();
+  auto& arr_core = gen.arrCore;
+  auto& stack_core = gen.stackCore;
+  auto& reg_core = gen.regCore;
+  auto& os = gen.setting.getOs();
+
+  Reg src = reg_core.GetAvailableReg();
+  Reg addr = reg_core.GetAvailableReg();
+  int sizejump = 0;
+
+  if (inst_gep.src->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
+    ArrInfo& info = arr_core.arrinfos[inst_gep.src];
+    arr_core.current_arr = info;
+    arr_core.current_dim = 1;
+    sizejump = arr_core.GetCurArrSize();
+
+    // src加载到reg src中
+    la(os, src, ParseSymbol(inst_gep.src->name));
+
+    // index加载到addr中
+    if (inst_gep.index->kind.tag == KOOPA_RVT_INTEGER) {
+      li(os, addr, inst_gep.index->kind.data.integer.value);
+    } else {
+      stack_core.WriteDataTranfer(stack_core.InstResult.at(inst_gep.index),
+                                  InstResultInfo(addr));
+    }
+
+  } else if (inst_gep.src->kind.tag == KOOPA_RVT_ALLOC) {
+    ArrInfo& info = arr_core.arrinfos[inst_gep.src];
+    arr_core.current_arr = info;
+    arr_core.current_dim = 1;
+    sizejump = arr_core.GetCurArrSize();
+
+    // src加载到reg src中
+    assert(info.stack_addr != -1);
+    if (IsImmInBound(info.stack_addr)) {
+      addi(os, src, Reg::sp, info.stack_addr);
+    } else {
+      Reg tmp = reg_core.GetAvailableReg();
+      li(os, tmp, info.stack_addr);
+      add(os, src, Reg::sp, tmp);
+      reg_core.ReleaseReg(tmp);
+    }
+
+    // index加载到addr中
+    if (inst_gep.index->kind.tag == KOOPA_RVT_INTEGER) {
+      li(os, addr, inst_gep.index->kind.data.integer.value);
+    } else {
+      stack_core.WriteDataTranfer(stack_core.InstResult.at(inst_gep.index),
+                                  InstResultInfo(addr));
+    }
+
+  } else if (inst_gep.src->kind.tag == KOOPA_RVT_GET_ELEM_PTR ||
+             inst_gep.src->kind.tag == KOOPA_RVT_GET_PTR) {
+    // 直接利用arr_core中的信息
+    // 因为生成koopaIR中，对一个数组的下标解算是连续的gep / gp指令
+
+    // 累加current_dim
+    arr_core.current_dim++;
+    sizejump = arr_core.GetCurArrSize();
+
+    // src: 从栈中获取
+    stack_core.WriteDataTranfer(stack_core.InstResult.at(inst_gep.src),
+                                InstResultInfo(src));
+
+    // index加载到addr中
+    if (inst_gep.index->kind.tag == KOOPA_RVT_INTEGER) {
+      li(os, addr, inst_gep.index->kind.data.integer.value);
+    } else {
+      stack_core.WriteDataTranfer(stack_core.InstResult.at(inst_gep.index),
+                                  InstResultInfo(addr));
+    }
+  }
+
+  // 计算地址偏移
+  Reg tmp1 = reg_core.GetAvailableReg();
+  li(os, tmp1, sizejump);
+  mul(os, addr, addr, tmp1);
+  reg_core.ReleaseReg(tmp1);
+
+  // 计算地址
+  // 最后存在src中
+  add(os, src, src, addr);
+
+  // 存回内存，返回值应该是地址
+  InstResultInfo destinfo(ValueType::e_stack, stack_core.IncreaseStackUsed());
+  InstResultInfo srcinfo(src);
+  // 走reg -> stack
+  stack_core.WriteDataTranfer(srcinfo, destinfo);
+  // 保存指令返回值
+  stack_core.InstResult.emplace(inst, destinfo);
+
+  reg_core.ReleaseReg(addr);
+  reg_core.ReleaseReg(src);
 }
 
 void visit_inst_binary(const koopa_raw_value_t& inst) {
@@ -369,11 +647,24 @@ void CalcMemoryNeeded(const koopa_raw_function_t& func) {
     for (size_t j = 0; j < bb->insts.len; ++j) {
       const koopa_raw_value_t& value =
           reinterpret_cast<koopa_raw_value_t>(bb->insts.buffer[j]);
-      // alloc和返回值为int32的非load语句
-      if ((value->ty->tag == KOOPA_RTT_INT32 &&
-           value->kind.tag != KOOPA_RVT_LOAD) ||
-          value->kind.tag == KOOPA_RVT_ALLOC)
+
+      // 非void语句
+      // 根据返回值计算
+
+      auto base = value->ty;
+      // alloc，计算指向的数据大小
+      if (value->kind.tag == KOOPA_RVT_ALLOC) {
+        base = base->data.pointer.base;
+        int arr_len = 1;
+        // 递归计算数组
+        while (base->tag == KOOPA_RTT_ARRAY) {
+          arr_len *= base->data.array.len;
+          base = base->data.array.base;
+        }
+        alloc_size += 4 * arr_len;
+      } else if (base->tag != KOOPA_RTT_UNIT) {
         alloc_size += 4;
+      }
 
       if (value->kind.tag == KOOPA_RVT_CALL) {
         has_call_inst = true;
@@ -392,7 +683,7 @@ void CalcMemoryNeeded(const koopa_raw_function_t& func) {
   }
 
   // 向上进位到16
-  std::cout << "alloc size: " << alloc_size << std::endl;
+  std::cerr << "alloc size: " << alloc_size << std::endl;
   alloc_size = (alloc_size + 15) / 16 * 16;
 
   auto& gen = RiscvGenerator::getInstance();
@@ -447,6 +738,28 @@ const InstResultInfo GetParamPosition(const int& param_cnt) {
       return InstResultInfo(Reg::a7);
     default:
       return InstResultInfo(ValueType::e_stack, (param_cnt - 8) * 4);
+  }
+}
+
+void SolveArrAggInit(const koopa_raw_value_t& value,
+                     ArrInfo& info,
+                     const bool& should_push_dim) {
+  if (value->kind.tag == KOOPA_RVT_INTEGER) {
+    info.PushNum(value->kind.data.integer.value);
+  } else if (value->kind.tag == KOOPA_RVT_AGGREGATE) {
+    int len = value->kind.data.aggregate.elems.len;
+    if (should_push_dim) {
+      info.shape.insert(info.shape.begin(), len);
+    }
+
+    // 只有每个维度的第一个才改变维度
+    bool spd = true;
+    for (int i = 0; i < len; i++) {
+      auto val = reinterpret_cast<koopa_raw_value_t>(
+          value->kind.data.aggregate.elems.buffer[i]);
+      SolveArrAggInit(val, info, spd && should_push_dim);
+      spd = false;
+    }
   }
 }
 
