@@ -200,13 +200,28 @@ void visit_inst_globalalloc(const koopa_raw_value_t& inst) {
     info.ty = InitType::e_int;
     info.value = inst_init->kind.data.integer.value;
     gen.globalCore.WriteGlobalVarDecl(ParseSymbol(inst->name), info);
-
   } else if (inst_init->kind.tag == KOOPA_RVT_ZERO_INIT) {
-    // zeroinit必是int
     InitInfo info;
     info.ty = InitType::e_zeroinit;
-    gen.globalCore.WriteGlobalVarDecl(ParseSymbol(inst->name), info);
 
+    // 处理数组
+    // 指针指向的指针的解引用，数组或int
+    if (inst->ty->data.pointer.base->tag == KOOPA_RTT_INT32) {
+      info.value = 4;
+    } else {
+      ArrInfo ainfo;
+      auto base = inst->ty->data.pointer.base;
+      while (base->tag == KOOPA_RTT_ARRAY) {
+        ainfo.shape.insert(ainfo.shape.begin(), base->data.array.len);
+        base = base->data.array.base;
+      }
+      info.value = ainfo.GetSize();
+
+      // 将相关信息存进全局数组表
+      // 新建一个arrinfo以消除初始化数据
+      gen.arrCore.arrinfos.emplace(inst, ainfo);
+    }
+    gen.globalCore.WriteGlobalVarDecl(ParseSymbol(inst->name), info);
   } else if (inst_init->kind.tag == KOOPA_RVT_AGGREGATE) {
     // 是一个一个数组
     ArrInfo info;

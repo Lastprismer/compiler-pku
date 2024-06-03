@@ -357,7 +357,7 @@ void GlobalVarModule::WriteGlobalVarDecl(const string& name,
   os << "\n  .data\n  .globl " << name << "\n" << name << ": \n";
   switch (init.ty) {
     case InitType::e_zeroinit:
-      os << "  .zero 4" << endl;
+      os << "  .zero " << init.value << endl;
       break;
     case InitType::e_int:
       os << "  .word " << init.value << endl;

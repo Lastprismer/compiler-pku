@@ -308,6 +308,10 @@ class ArrInitManager {
 
   // dump中最外层大括号不用插入
   bool should_insert;
+  // 使用zeroinit
+  bool zero_init;
+  // 初始化的是全局数组
+  bool global;
 
   ArrInitManager();
   // 向当前指向的列表中推入一个值
@@ -329,7 +333,8 @@ class ArrInitManager {
   // 递归处理：给定arr node和数组的size
   void RecursionGetInits(const ArrInitNode& node,
                          const ArrInfo& shape,
-                         vector<RetInfo>& appendto);
+                         vector<RetInfo>& appendto,
+                         bool first_layer);
 };
 
 #pragma endregion

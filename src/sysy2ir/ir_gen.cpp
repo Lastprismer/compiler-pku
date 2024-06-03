@@ -560,7 +560,11 @@ const string FuncManager::getParamVarName(const string& name) const {
 #pragma region arr init
 
 ArrInitManager::ArrInitManager()
-    : root(ArrInitNode::node_t::e_arr), current(&root), should_insert(false) {}
+    : root(ArrInitNode::node_t::e_arr),
+      current(&root),
+      should_insert(false),
+      zero_init(false),
+      global(false) {}
 
 void ArrInitManager::PushInfo(const RetInfo& info) {
   ArrInitNode val(info);
@@ -583,11 +587,13 @@ void ArrInitManager::Clear() {
   root = ArrInitNode(ArrInitNode::node_t::e_arr);
   current = &root;
   should_insert = false;
+  zero_init = false;
+  global = false;
 }
 
 const vector<RetInfo> ArrInitManager::GetInits(const ArrInfo& shape) {
   vector<RetInfo> ret;
-  RecursionGetInits(root, shape, ret);
+  RecursionGetInits(root, shape, ret, true);
   return ret;
 }
 
@@ -627,7 +633,8 @@ void ArrInitManager::GetInitString(const ArrInfo& arr,
 
 void ArrInitManager::RecursionGetInits(const ArrInitNode& node,
                                        const ArrInfo& arr,
-                                       vector<RetInfo>& appendto) {
+                                       vector<RetInfo>& appendto,
+                                       bool first_layer) {
   // 记录这个shape中已经初始化的元素个数
   int has_inited = 0;
   // 记录数组dim
@@ -635,6 +642,12 @@ void ArrInitManager::RecursionGetInits(const ArrInitNode& node,
   int dim = arr.Dim();
   // 这个数组应该初始化的元素数
   int should_init = arr.GetSize();
+
+  // 处理零初始化
+  if (global && first_layer && node.nodes.size() == 0) {
+    zero_init = true;
+    return;
+  }
 
   // 初始化这个子数组中的所有元素
   for (auto n : node.nodes) {
@@ -668,7 +681,7 @@ void ArrInitManager::RecursionGetInits(const ArrInitNode& node,
       ArrInfo fragment = arr.GetFrag(i, dim);
 
       // 处理这个数组
-      RecursionGetInits(n, fragment, appendto);
+      RecursionGetInits(n, fragment, appendto, false);
       // 已处理元素个数累加上数组元素个数
       has_inited += fragment.GetSize();
     }
@@ -679,6 +692,9 @@ void ArrInitManager::RecursionGetInits(const ArrInitNode& node,
     appendto.push_back(RetInfo(0));
     has_inited++;
   }
+
+  // 能运行到这里那肯定不是零初始化
+  zero_init = false;
 }
 
 #pragma endregion
@@ -924,14 +940,15 @@ void IRGenerator::WriteGlobalArrVar(const SymbolTableEntry& entry) {
   assert(entry.var_type == VarType::e_arr);
 
   auto& os = setting.getOs();
+  arrinitCore.global = true;
   auto init = arrinitCore.GetInits(entry.arr_info);
 
   // 定义
   os << "global " << entry.GetAllocName() << " = alloc "
      << entry.arr_info.GetType() << ", ";
+
   // 初始化
-  int init_len = init.size();
-  if (init_len == 0) {
+  if (arrinitCore.zero_init) {
     // 使用zeroinit
     os << "zeroinit" << endl;
   } else {

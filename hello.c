@@ -1,35 +1,45 @@
-// Really long code;
-int n;
+int buf[2][100];
 
-int getMost(int arr[]) {
-  int count[1000];
-  int i;
-  i = 0;
-  while (i < 1000) {
-    count[i] = 0;
-    i = i + 1;
-  }
-  i = 0;
-  int max;
-  int number;
-  max = 0;
-  while (i < n) {
-    int num;
-    num = arr[i];
-    count[num] = count[num] + 1;
-    if (count[num] > max) {
-      max = count[num];
-      number = num;
+// sort [l, r)
+void merge_sort(int l, int r) {
+  if (l + 1 >= r)
+    return;
+
+  int mid = (l + r) / 2;
+  merge_sort(l, mid);
+  merge_sort(mid, r);
+
+  int i = l, j = mid, k = l;
+  while (i < mid && j < r) {
+    if (buf[0][i] < buf[0][j]) {
+      buf[1][k] = buf[0][i];
+      i = i + 1;
+    } else {
+      buf[1][k] = buf[0][j];
+      j = j + 1;
     }
-    i = i + 1;
+    k = k + 1;
   }
-  return number;
+  while (i < mid) {
+    buf[1][k] = buf[0][i];
+    i = i + 1;
+    k = k + 1;
+  }
+  while (j < r) {
+    buf[1][k] = buf[0][j];
+    j = j + 1;
+    k = k + 1;
+  }
+
+  while (l < r) {
+    buf[0][l] = buf[1][l];
+    l = l + 1;
+  }
 }
 
 int main() {
-  n = 32;
-  int arr[32] = {0};
-  int t = getMost(arr);
-  putint(t);
+  int n = getarray(buf[0]);
+  merge_sort(0, n);
+  putarray(n, buf[0]);
   return 0;
 }
