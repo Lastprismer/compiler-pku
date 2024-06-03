@@ -505,11 +505,6 @@ void RiscvGenerator::WriteBinaInst(OpType op,
   }
 }
 
-void RiscvGenerator::Clear() {
-  stackCore.Clear();
-  funcCore.Clear();
-}
-
 #pragma endregion
 
 }  // namespace riscv

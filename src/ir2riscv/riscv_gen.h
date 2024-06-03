@@ -211,7 +211,5 @@ class RiscvGenerator {
 
   // 输入运算符，输出指令
   void WriteBinaInst(OpType op, const Reg& left, const Reg& right);
-  // 清除函数相关记录
-  void Clear();
 };
 };  // namespace riscv

@@ -44,7 +44,8 @@ void visit_func(const koopa_raw_function_t& func) {
   // 访问所有基本块
   auto& gen = RiscvGenerator::getInstance();
 
-  gen.Clear();
+  gen.funcCore.Clear();
+  gen.stackCore.Clear();
 
   gen.funcCore.func_name = ParseSymbol(func->name);
   CalcMemoryNeeded(func);
