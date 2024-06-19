@@ -1,12 +1,11 @@
-#include "sysy2ir.h"
+#include "ir_sysy2ir.h"
 
 extern FILE* yyin;
 extern int yyparse(unique_ptr<BaseAST>& ast);
 
-string sysy2ir(const char* input,
-               const char* output,
-               bool output2file,
-               bool output2stdout = false) {
+namespace ir {
+
+string sysy2ir(const char* input, const char* output, bool output2file) {
   yyin = fopen(input, "r");
   assert(yyin);
 
@@ -15,22 +14,27 @@ string sysy2ir(const char* input,
   auto ret = yyparse(ast);
   assert(!ret);
 
-  stringstream ss;
-  ast->Dump(ss, -1);
+  stringstream out, cou;
 
-  if (output2stdout) {
-    cout << "IR code:\n" << ss.str() << endl;
-  }
+  IRGenerator::getInstance().setting.setIndent(0).setOs(cou);
 
-  if (output2file) {
+  // ast->Print(out, 0);
+  ast->Dump();
+
+  if (false) {
+    cout << "Structure: \n" << out.str() << endl;
+    cout << "IR code:\n" << cou.str() << endl;
+  } else {
     // 输出到文件
     ofstream outfile(output);
     if (outfile.is_open()) {
-      outfile << ss.str();
+      outfile << cou.str();
       outfile.close();
     } else {
       cerr << "无法打开文件：" << output << endl;
     }
   }
-  return ss.str();
+  return cou.str();
 }
+
+}  // namespace ir
